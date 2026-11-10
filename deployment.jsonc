@@ -65,7 +65,7 @@
     "issuer": "https://ness.cloudflareaccess.com",
     "audience": "6c7355bb15cc577395849021adb16dc1462dff94a18e2b351b2105d19f1dc905",
     "admins": [
-      "resper@ness.com.br"
+      "resper@ness.com.br", "ricardo@ness.com.br"
     ]
   },
 
@@ -144,3 +144,4 @@
     "traces": { "enabled": false, "headSamplingRate": 0.1 }
   }
 }
+
