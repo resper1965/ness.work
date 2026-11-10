@@ -1,14 +1,14 @@
 {
   // Cloudflare account that owns every Worker and provisioned resource.
   // Find it: https://developers.cloudflare.com/fundamentals/account/find-account-and-zone-ids/
-  "accountId": "<CLOUDFLARE_ACCOUNT_ID>",
+  "accountId": "0a6c490dd5fe9051422c15c9e133138e",
 
   // The deployment's public origin, used for PUBLIC_BASE_URL and to scope Context data.
   // null derives it from workers.router.route.customDomain.
   // Required when the router uses workersDev: the account's workers.dev subdomain is not
   // knowable from this file. Write it as a bare origin, no path and no trailing slash --
   // "https://<router-name>.<subdomain>.workers.dev".
-  "publicBaseUrl": null,
+  "publicBaseUrl": "https://agentos.ness.workers.dev",
 
   // Worker names are permanent service identities. Keep them unique within the account.
   // Reference: docs/customization.md#workers-and-routing
@@ -16,21 +16,23 @@
     // Owns the public URL and serves the frontend. Proxies /api and /blueprint-screenshot to the
     // Workshop, and /gatekeeper/<name> to the matching Gatekeeper.
     "router": {
-      "name": "<ROUTER_WORKER_NAME>",
+      "name": "agentos",
 
       // Production: use a hostname in an active Cloudflare zone. Wrangler creates DNS and TLS.
       // Evaluation: replace this with "route": { "workersDev": true } and set publicBaseUrl above.
       // https://developers.cloudflare.com/workers/configuration/routing/custom-domains/
-      "route": { "customDomain": "os.example.com" }
+      "route": {
+        "workersDev": true
+      }
     },
 
     // The Workshop backend. No public route: the router reaches it over a service binding.
-    "workshop": { "name": "<WORKSHOP_WORKER_NAME>" },
-    "context": { "name": "<CONTEXT_WORKER_NAME>" },
+    "workshop": { "name": "agentos-backend" },
+    "context": { "name": "agentos-gk-context" },
 
     // The Scheduler Gatekeeper, which gives agents scheduled and recurring work. Ambient like
     // the Context Gatekeeper
-    "scheduler": { "name": "<SCHEDULER_WORKER_NAME>" },
+    "scheduler": { "name": "agentos-gk-scheduler" },
 
     // The Web Search Gatekeeper, which lets agents search the public web. Ambient too. It searches
     // through aiGateway.name below when that gateway is in this account, and through the account's
@@ -38,10 +40,10 @@
     // separately from models: load AI Gateway credits on the account, or store a Ceramic key
     // (alias "default") on the gateway it actually searches through, or every search fails.
     // See docs/customization.md#workers-and-routing.
-    "websearch": { "name": "<WEBSEARCH_WORKER_NAME>" },
+    "websearch": { "name": "agentos-gk-websearch" },
 
-    "customGatekeeper": { "name": "<CUSTOM_GATEKEEPER_WORKER_NAME>" },
-    "errorReporter": { "name": "<ERROR_REPORTER_WORKER_NAME>" }
+    "customGatekeeper": { "name": "agentos-gk-custom" },
+    "errorReporter": { "name": "agentos-errors" }
   },
 
   // Optional upstream Gatekeepers (GitHub, Slack, ...), keyed by slug, each its own Worker:
@@ -58,9 +60,11 @@
   // "admins" gates /admin in every sign-in method.
   // Reference: docs/customization.md#sign-in-methods
   "access": {
-    "issuer": "https://<TEAM_NAME>.cloudflareaccess.com",
-    "audience": "<ACCESS_AUDIENCE>",
-    "admins": ["<ADMIN_EMAIL>"]
+    "issuer": "https://ness.cloudflareaccess.com",
+    "audience": "6c7355bb15cc577395849021adb16dc1462dff94a18e2b351b2105d19f1dc905",
+    "admins": [
+      "resper@ness.com.br"
+    ]
   },
 
   // Model catalog served through Cloudflare AI Gateway. Enabled by default: the Workshop reaches
@@ -73,7 +77,7 @@
     // Your account's AI Gateway. "default" is the one Cloudflare creates for the account.
     // Migrating from the hosted deploy? Use the gateway that flow created: "<instance>-ai"
     // (e.g. "cloudflareos-ai"), named after your instance. See docs/migrate-from-hosted.md.
-    "name": "default",
+    "name": "agentos-ai",
 
     // null reuses the top-level accountId. Set only if the gateway lives in another account --
     // that requires CF_AI_GATEWAY_API_TOKEN, since the binding cannot reach across accounts.
@@ -81,7 +85,9 @@
 
     // "cloudflare" is Workers AI, which needs no key of your own. anthropic/openai need keys
     // stored on the gateway; "google" additionally requires CF_AI_GATEWAY_API_TOKEN.
-    "providers": ["cloudflare"]
+    "providers": [
+      "cloudflare"
+    ]
   },
 
   "context": {
@@ -91,7 +97,7 @@
 
     // null: Wrangler provisions and remembers a KV namespace on first deploy.
     // string: bind an existing namespace by ID.
-    "kvNamespaceId": null
+    "kvNamespaceId": "9ae33e5f4f284ac7a98409bbbee8924b"
 
     // Optional Git-compatible storage for Context collections. To enable it, add a comma after
     // kvNamespaceId and uncomment this object. Requires Artifacts account access.
@@ -106,8 +112,8 @@
   // Reference: docs/customization.md#custom-gatekeepers
   "customGatekeeper": {
     "enabled": true,
-    "name": "<ORGANIZATION_DISPLAY_NAME>",
-    "message": "<ORGANIZATION_GUIDANCE>"
+    "name": "NESS",
+    "message": "This is NESS's Cloudflare OS deployment."
   },
 
   // Explicit backend issue reports go to a private Worker that emits structured console errors.
@@ -122,9 +128,9 @@
   // null values use Wrangler automatic provisioning. Set IDs/names to reuse owned resources.
   // https://developers.cloudflare.com/workers/wrangler/configuration/#automatic-provisioning
   "resources": {
-    "blueprintsKvNamespaceId": null,
-    "avatarsKvNamespaceId": null,
-    "blueprintContentBucket": null
+    "blueprintsKvNamespaceId": "779ce178654e4b2e9e1082909d80a980",
+    "avatarsKvNamespaceId": "927ba286e7b34191a787d964738190d6",
+    "blueprintContentBucket": "agentos-blueprint-content"
   },
 
   // Structured custom logs stay enabled. Invocation logs and traces are separate volume controls.
