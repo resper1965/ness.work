@@ -50,7 +50,9 @@
   //   "github": { "name": "<router-name>-gk-github" }
   // `pnpm cf-os init` offers them; `pnpm cf-os secrets` sets their OAuth credentials.
   // Reference: docs/customization.md#optional-gatekeepers
-  "gatekeepers": {},
+  "gatekeepers": {
+    "mcp": { "name": "agentos-gk-mcp" }
+  },
 
   // This starter deploys Cloudflare Access mode. Cloudflare OS also supports built-in password
   // accounts and auth Gatekeeper sign-in; see the reference below before switching. The audience
