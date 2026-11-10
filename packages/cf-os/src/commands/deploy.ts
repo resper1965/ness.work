@@ -27,6 +27,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { resolveBinEntry } from "@gadgets/scripts/bin-entry";
 import { pnpmCommand } from "../pnpm-command.ts";
+import { aplicarPtBr } from "../ness-pt-br.ts";
 import { parse, printParseErrorCode, type ParseError } from "jsonc-parser";
 import { prefetch } from "../cached-reads.ts";
 import { configPath, displayPath, type CommandArgs, type Context } from "../context.ts";
@@ -152,6 +153,7 @@ async function buildAll(ctx: Context, config: DeploymentConfig, catalog: Gatekee
       throw error;
     }
   }, abort.signal));
+  await aplicarPtBr(ctx.root);
 }
 
 /**
