@@ -111,7 +111,7 @@
   // Displayed to agents when the example custom integration is enabled in /admin. false deploys none.
   // Reference: docs/customization.md#custom-gatekeepers
   "customGatekeeper": {
-    "enabled": true,
+    "enabled": false,
     "name": "NESS",
     "message": "This is NESS's Cloudflare OS deployment."
   },
