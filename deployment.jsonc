@@ -8,7 +8,7 @@
   // Required when the router uses workersDev: the account's workers.dev subdomain is not
   // knowable from this file. Write it as a bare origin, no path and no trailing slash --
   // "https://<router-name>.<subdomain>.workers.dev".
-  "publicBaseUrl": "https://agentos.ness.workers.dev",
+  "publicBaseUrl": null,
 
   // Worker names are permanent service identities. Keep them unique within the account.
   // Reference: docs/customization.md#workers-and-routing
@@ -21,9 +21,7 @@
       // Production: use a hostname in an active Cloudflare zone. Wrangler creates DNS and TLS.
       // Evaluation: replace this with "route": { "workersDev": true } and set publicBaseUrl above.
       // https://developers.cloudflare.com/workers/configuration/routing/custom-domains/
-      "route": {
-        "workersDev": true
-      }
+      "route": { "customDomain": "work.ness.com.br" }
     },
 
     // The Workshop backend. No public route: the router reaches it over a service binding.
@@ -95,7 +93,7 @@
   "context": {
     // Isolates Context data shared by this Workshop deployment.
     // null scopes it to the public origin
-    "sharingDomain": null,
+    "sharingDomain": "https://agentos.ness.workers.dev",
 
     // null: Wrangler provisions and remembers a KV namespace on first deploy.
     // string: bind an existing namespace by ID.
