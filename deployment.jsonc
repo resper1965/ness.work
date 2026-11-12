@@ -49,7 +49,20 @@
   // `pnpm cf-os init` offers them; `pnpm cf-os secrets` sets their OAuth credentials.
   // Reference: docs/customization.md#optional-gatekeepers
   "gatekeepers": {
-    "mcp": { "name": "agentos-gk-mcp" }
+    "mcp": { "name": "agentos-gk-mcp" },
+
+    // Microsoft 365 (Outlook, Agenda, SharePoint/OneDrive) com OAuth delegado por pessoa.
+    // Secrets (CLIENT_ID, CLIENT_SECRET, MICROSOFT_TENANT_ID): `pnpm cf-os secrets microsoft`.
+    // Envio de e-mail e convites a participantes nunca são autoaprovados (regra do upstream).
+    "microsoft": {
+      "name": "agentos-gk-microsoft",
+      "vars": {
+        "MICROSOFT_OUTLOOK_ACCESS": "send",
+        "MICROSOFT_CALENDAR_ACCESS": "schedule",
+        // Não pedido nesta fase: só leitura até decidirmos o escopo de arquivos.
+        "MICROSOFT_SHAREPOINT_ACCESS": "read"
+      }
+    }
   },
 
   // This starter deploys Cloudflare Access mode. Cloudflare OS also supports built-in password

@@ -713,7 +713,10 @@
     if (raiz.nodeType !== 1) return
     noElemento(raiz)
     const w = document.createTreeWalker(raiz, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT)
-    for (let n = w.nextNode(); n; n = w.nextNode()) n.nodeType === 3 ? noTexto(n) : noElemento(n)
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      if (n.nodeType === 3) noTexto(n)
+      else noElemento(n)
+    }
   }
 
   globalThis.__nessTraduzir = traduzir // para o teste
@@ -729,7 +732,8 @@
       }
     }).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATRIBUTOS })
   }
-  document.body ? iniciar() : document.addEventListener('DOMContentLoaded', iniciar)
+  if (document.body) iniciar()
+  else document.addEventListener('DOMContentLoaded', iniciar)
 })()
 
 // ness.: ponto da marca em BlueDot no nome "ness.work" (o /admin só aceita texto puro).
