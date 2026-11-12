@@ -1,4 +1,4 @@
-# ADR 0001 — Microsoft 365 no ness.work via gatekeeper oficial do upstream
+# ADR 0001 — Microsoft 365 no ness.work: gatekeeper oficial + MCP próprio para tarefas e contatos
 
 - **Status:** Aceita
 - **Data:** 2026-11-11
@@ -6,7 +6,7 @@
 
 ## Contexto
 
-O ness.work precisa ler e escrever e-mail, agenda e contatos dos colaboradores no Microsoft 365. Cada agente só pode agir sobre os dados da pessoa que o conectou.
+O ness.work precisa trabalhar com e-mail, agenda, tarefas (Planner e To Do) e contatos dos colaboradores no Microsoft 365. O gargalo das equipes é planejamento e gestão de projetos, e a ferramenta escolhida é o Planner. Cada agente só pode agir sobre os dados da pessoa que o conectou.
 
 A identidade da ness. é o Entra ID (P1), e o acesso ao ness.work já passa pelo Cloudflare Access com Entra.
 
@@ -19,7 +19,12 @@ A identidade da ness. é o Entra ID (P1), e o acesso ao ness.work já passa pelo
 
 ## Decisão
 
-Adotar a opção 4. Ela entra no ness.work como gatekeeper opcional `microsoft` no `deployment.jsonc`, com o Worker `agentos-gk-microsoft`.
+Modelo híbrido, com um único app no Entra:
+
+- **E-mail e agenda:** opção 4, o gatekeeper oficial.
+- **Planner, To Do e contatos:** opção 1, um MCP próprio pequeno, porque o gatekeeper oficial não cobre essas áreas. Detalhes em uma ADR própria (0002).
+
+O gatekeeper oficial entra no ness.work como gatekeeper opcional `microsoft` no `deployment.jsonc`, com o Worker `agentos-gk-microsoft`.
 
 | Variável | Valor | Efeito |
 |---|---|---|
@@ -50,7 +55,8 @@ Adotar a opção 4. Ela entra no ness.work como gatekeeper opcional `microsoft` 
 
 ## Consequências
 
-- **Contatos:** o gatekeeper só encontra pessoas, pelo People e pelo diretório. Criar ou editar contatos do Outlook não está coberto. Se isso for necessário, a saída é um gatekeeper próprio só para contatos, em uma ADR nova.
+- **Planner, To Do e contatos** ficam no MCP próprio. Antes de codá-lo, é preciso validar se tarefas de planos premium do Planner (que vivem no Dataverse) aparecem pelo Graph.
+- **Um único app no Entra:** as permissões do MCP próprio (`Tasks.*`, `Contacts.*`) entram no mesmo app depois, com novo consentimento de admin.
 - **Checagem de identidade:** não há verificação de que o e-mail da sessão do Access é igual ao UPN do token. A mitigação é a restrição ao tenant somada ao *Assignment required*.
 - **Fixação da versão:** o comportamento depende da versão do upstream fixada no submódulo. Toda atualização do submódulo deve revisar o changelog do `gatekeeper-microsoft`.
 - **SharePoint com escrita:** liberar exige mudar a variável e as permissões (`Sites.ReadWrite.All`, `Files.ReadWrite.All`), em uma ADR nova.
