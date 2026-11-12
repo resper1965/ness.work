@@ -42,13 +42,14 @@ O gatekeeper oficial entra no ness.work como gatekeeper opcional `microsoft` no 
 
 ## Controles complementares (Entra)
 
-- App registration *single tenant*, com redirect `https://work.ness.com.br/gatekeeper/microsoft/oauth`.
+- Um único app registration, `ness.work M365`, *single tenant*, com dois redirects: `https://work.ness.com.br/gatekeeper/microsoft/oauth` (gatekeeper oficial) e `https://m365.ness.com.br/callback` (MCP próprio).
 - Permissões delegadas:
   - `openid`, `profile`, `email`, `offline_access`, `User.Read`
   - `Mail.ReadWrite`, `Mail.ReadWrite.Shared`, `Mail.Send`, `Mail.Send.Shared`, `MailboxSettings.ReadWrite`
   - `Calendars.ReadWrite`, `Calendars.ReadWrite.Shared`
   - `People.Read`, `User.ReadBasic.All`
   - `Sites.Read.All`, `Files.Read.All`
+  - MCP próprio: `Tasks.ReadWrite`, `Contacts.ReadWrite`, `Group.Read.All`
 - Consentimento de administrador concedido uma vez para o tenant.
 - No Enterprise App, *Assignment required* ligado, com o grupo dos colaboradores atribuído (o mesmo da política do Access).
 - O client secret tem data de expiração e precisa de rotação agendada. Quando ele vence, as conexões param de renovar.
@@ -56,7 +57,7 @@ O gatekeeper oficial entra no ness.work como gatekeeper opcional `microsoft` no 
 ## Consequências
 
 - **Planner, To Do e contatos** ficam no MCP próprio. Antes de codá-lo, é preciso validar se tarefas de planos premium do Planner (que vivem no Dataverse) aparecem pelo Graph.
-- **Um único app no Entra:** as permissões do MCP próprio (`Tasks.*`, `Contacts.*`) entram no mesmo app depois, com novo consentimento de admin.
+- **Um único app no Entra:** todas as permissões entram de uma vez, com um consentimento de admin; as do MCP próprio ficam sem uso até ele subir. O mesmo client secret serve às duas partes, então a rotação é uma só.
 - **Checagem de identidade:** não há verificação de que o e-mail da sessão do Access é igual ao UPN do token. A mitigação é a restrição ao tenant somada ao *Assignment required*.
 - **Fixação da versão:** o comportamento depende da versão do upstream fixada no submódulo. Toda atualização do submódulo deve revisar o changelog do `gatekeeper-microsoft`.
 - **SharePoint com escrita:** liberar exige mudar a variável e as permissões (`Sites.ReadWrite.All`, `Files.ReadWrite.All`), em uma ADR nova.
