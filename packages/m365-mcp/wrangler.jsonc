@@ -1,0 +1,25 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // Deploy separado do `cf-os deploy`: `pnpm exec wrangler deploy` nesta pasta (README).
+  "name": "ness-m365-mcp",
+  "main": "src/index.ts",
+  "account_id": "0a6c490dd5fe9051422c15c9e133138e",
+  "compatibility_date": "2026-09-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "m365.ness.com.br", "custom_domain": true }],
+  "vars": {
+    "REDIRECT_PERMITIDO": "https://work.ness.com.br/gatekeeper/mcp/",
+    // Object ID do grupo do PMO no Entra. Vazio: ninguém cria nem atribui tarefas.
+    "PMO_GROUP_ID": ""
+  },
+  // Sem id: o Wrangler cria os dois no primeiro deploy e grava o id aqui.
+  "kv_namespaces": [{ "binding": "OAUTH_KV" }],
+  "d1_databases": [{ "binding": "AUDITORIA", "database_name": "ness-m365-auditoria", "migrations_dir": "migrations" }],
+  "observability": {
+    "enabled": true,
+    "logs": { "invocation_logs": false }
+  }
+  // Secrets: ENTRA_TENANT_ID, ENTRA_CLIENT_ID, ENTRA_CLIENT_SECRET (wrangler secret put).
+}
