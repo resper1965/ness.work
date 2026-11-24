@@ -726,7 +726,8 @@ function* stylesXml(styles: Styles): Generator<string, void, unknown> {
     if (font.strike) yield "<strike/>";
     yield `<sz val="${font.size || 11}"/>`;
     if (font.color) yield `<color rgb="${font.color}"/>`;
-    yield '<name val="Calibri"/><family val="2"/><scheme val="minor"/></font>';
+    // ness.: Inter, a fonte de corpo do NESS Design System.
+    yield '<name val="Inter"/><family val="2"/></font>';
   }
   yield "</fonts>";
   yield `<fills count="${styles.fills.length}"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>`;

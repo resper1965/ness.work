@@ -20,7 +20,7 @@ const PATCHES = join(aqui, "patches");
 const ATIVOS = join(aqui, "ativos");
 // Arquivo gerado a partir de ativos/, fora dos patches.
 const GERADO = "files/lib/ness-ativos.ts";
-const COM_ATIVOS = ["workspace-slides", "workspace-docs"];
+const COM_ATIVOS = ["workspace-slides", "workspace-docs", "workspace-sheets"];
 // A biblioteca de PowerPoint de fábrica (Arial, paleta laranja) vai copiada para dentro da
 // Apresentação, onde o patch a ajusta: o Cloudflare OS não deixa trocá-la de fora.
 const BIBLIOTECAS = join(FABRICA, "..", "libraries");
