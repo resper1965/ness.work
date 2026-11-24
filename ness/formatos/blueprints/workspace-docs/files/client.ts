@@ -32,6 +32,7 @@ import type {
 import { escapeHtml, inlineMarkdown, isCodeEditorHtml, normalizeHref, parseTsv, pipeCells, sanitizePastedHtml as sanitizeHtml, textToHtml, type PasteContext } from "./lib/paste.ts";
 import { MARK_TAGS, VOID_TAGS, mergeBlockHtml } from "./lib/merge.ts";
 import { codeFence } from "./lib/markdown.ts";
+import { NESS_CAPA_CSS, NESS_CSS } from "./lib/ness-tema.ts";
 import {
   type ElChild,
   DEFAULT_IMAGE_LIMITS,
@@ -6538,6 +6539,8 @@ if (isExport) {
     n.style.display = "none";
   }
 }
+// ness.: o visual do NESS Design System, depois dos estilos de fábrica (lib/ness-tema.ts).
+document.head.appendChild(el("style", { text: NESS_CSS + NESS_CAPA_CSS }));
 // Exports are captured when this script finishes: let web fonts land first so
 // the PDF's text matches the screen (but never wait more than 1.5 s).
 if (isExport && document.fonts) await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1500))]);

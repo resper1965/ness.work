@@ -57,8 +57,8 @@ export interface DocxSource {
 /** The document's shared presentation settings; any left out take their defaults. */
 export type DocxSettings = Partial<DocSettings>;
 
-// US Letter, 1in margins: the content box is 6.5in wide.
-const PAGE = { w: 12240, h: 15840, margin: 1440 };
+// ness.: A4, margens de 19 mm (o template Documento do NESS Design System).
+const PAGE = { w: 11906, h: 16838, margin: 1077 };
 const CONTENT_TWIPS = PAGE.w - 2 * PAGE.margin;
 const CONTENT_HEIGHT_TWIPS = PAGE.h - 2 * PAGE.margin;
 const EMU_PER_TWIP = 635;
@@ -76,12 +76,14 @@ interface Typeface {
 // The three shared typefaces (settings.font), mirroring the editor's
 // --doc-font / --doc-size / --doc-lh: the editor's 16px sans body maps to 11pt.
 const TYPEFACES: Record<DocFont, Typeface> = {
-  sans: { font: "Arial", size: 11, line: 1.65 },
+  sans: { font: "Inter", size: 10.5, line: 1.6 },
   serif: { font: "Georgia", size: 12, line: 1.6 },
   mono: { font: "Courier New", size: 10, line: 1.7 },
 };
 // Courier New: the monospace face Word, Google Docs, LibreOffice and Apple's readers all have.
-const MONO_FONT = "Courier New";
+const MONO_FONT = "JetBrains Mono";
+// ness.: Montserrat nos títulos.
+const HEAD_FONT = "Montserrat";
 
 // A CSS line-height as a Word "multiple" line rule (240ths of single
 // spacing). Word's single spacing is the font's own line height, about 1.15em
@@ -89,16 +91,19 @@ const MONO_FONT = "Courier New";
 const cssLine = (lineHeight: number): number => Math.round(lineHeight / 1.15 * 240);
 
 // Editor colours (light palette; exports always use it).
-const INK = "1B1B1F";
-const INK_2 = "46464E";
-const MUTED = "7B7B84";
-const FAINT = "ABABB3";
-const ACCENT = "E1632E";
-const LINE = "EBEBEC"; //        rgba(24,24,32,.08) on white
-const LINE_STRONG = "DADADC"; // rgba(24,24,32,.15) on white
-const CODE_BG = "F3F3F4"; //     rgba(24,24,32,.05) on white
-const INLINE_CODE_BG = "F0F0F1";
-const TABLE_HEAD = "F7F7F8"; //  rgba(24,24,32,.034) on white
+// ness.: o tema claro do NESS Design System.
+const INK = "0F172A";
+const INK_2 = "334155";
+const MUTED = "475569";
+const FAINT = "94A3B8";
+const ACCENT = "00ADE8";
+const ACCENT_TEXT = "006A8F";
+const CALLOUT_BG = "E6F7FD"; //  BlueDot a 10% sobre o papel
+const LINE = "E2E8F0";
+const LINE_STRONG = "CBD5E1";
+const CODE_BG = "F8FAFC";
+const INLINE_CODE_BG = "F1F5F9";
+const TABLE_HEAD = INK; //      cabeçalho em tinta, texto no papel
 const MARK_BG = "FBEFC4";
 
 // The editor's palette (client.ts PALETTE): [text, highlight] in the light theme.
@@ -911,7 +916,7 @@ class DocxWriter {
       // inside (a list item's hangs further out).
       const textX = Math.max(0, leftTwips) - (state.hanging ?? 0);
       const space = clampNumber(Math.round((textX - (state.quoteRule ?? 0)) / 20), 0, 31);
-      pPr.push(`<w:pBdr><w:left w:val="single" w:sz="12" w:space="${space}" w:color="${LINE_STRONG}"/></w:pBdr>`);
+      pPr.push(`<w:pBdr><w:left w:val="single" w:sz="12" w:space="${space}" w:color="${ACCENT}"/></w:pBdr><w:shd w:val="clear" w:color="auto" w:fill="${CALLOUT_BG}"/>`);
     }
     // A hanging marker (a number, bullet or to-do checkbox) is followed by a tab to the text's indent.
     if (state.hanging) pPr.push(`<w:tabs><w:tab w:val="left" w:pos="${leftTwips}"/></w:tabs>`);
@@ -930,13 +935,20 @@ class DocxWriter {
     };
   }
 
+  /** ness.: o número da próxima seção (h2). */
+  #secao = 0;
+
   #block(node: ElementNode, state: BlockState): void {
     const tag = node.tag;
     const css = parseStyle(node.attrs.style);
     const heading = HEADING_STYLE[tag];
     if (heading) {
       const title = tag === "h1" && /(^|\s)doc-title(\s|$)/.test(node.attrs.class ?? "");
-      this.#paragraph(node.children, this.#paragraphOptions(state, node, { style: title ? "Title" : heading }));
+      const options = this.#paragraphOptions(state, node, { style: title ? "Title" : heading });
+      // ness.: seções numeradas (01, 02…) e subtítulos com ▸, em BlueDot, como no editor.
+      const marca = tag === "h2" ? String(++this.#secao).padStart(2, "0") + "\u2002\u2002" : tag === "h3" || tag === "h4" ? "\u25B8\u2002" : "";
+      if (marca) options.prefix = `<w:r><w:rPr><w:color w:val="${ACCENT}"/></w:rPr><w:t xml:space="preserve">${marca}</w:t></w:r>` + (options.prefix ?? "");
+      this.#paragraph(node.children, options);
       return;
     }
     switch (tag) {
@@ -1414,7 +1426,7 @@ function stylesXml(face: Typeface): string {
   const fonts = (name: string): string => `<w:rFonts w:ascii="${name}" w:eastAsia="${name}" w:hAnsi="${name}" w:cs="${name}"/>`;
   const size = (halves: number): string => `<w:sz w:val="${halves}"/><w:szCs w:val="${halves}"/>`;
   const heading = (id: string, name: string, level: number, em: number, before: number, after: number, line: number): string =>
-    `<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${name}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="9"/><w:qFormat/><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="${twips(before, base * em)}" w:after="${twips(after, base * em)}" w:line="${cssLine(line)}" w:lineRule="auto"/><w:outlineLvl w:val="${level}"/></w:pPr><w:rPr><w:b/><w:bCs/><w:color w:val="${INK}"/><w:spacing w:val="${Math.round(-0.02 * base * em * 20)}"/>${size(pt(em))}</w:rPr></w:style>`;
+    `<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${name}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="9"/><w:qFormat/><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="${twips(before, base * em)}" w:after="${twips(after, base * em)}" w:line="${cssLine(line)}" w:lineRule="auto"/><w:outlineLvl w:val="${level}"/>${level === 1 ? `<w:pBdr><w:bottom w:val="single" w:sz="4" w:space="6" w:color="${LINE}"/></w:pBdr>` : ""}</w:pPr><w:rPr>${level === 2 ? fonts(font) : fonts(HEAD_FONT)}<w:b/><w:bCs/><w:color w:val="${level === 2 ? ACCENT_TEXT : INK}"/><w:spacing w:val="${Math.round(-0.02 * base * em * 20)}"/>${size(pt(em))}</w:rPr></w:style>`;
   const tableBorder = (side: string, sz: number, color: string): string => `<w:${side} w:val="single" w:sz="${sz}" w:space="0" w:color="${color}"/>`;
   const cellPadY = twips(0.42, base * 0.9375);
   return XML_HEAD + `<w:styles ${W_NS}>` +
@@ -1425,10 +1437,10 @@ function stylesXml(face: Typeface): string {
     `<w:style w:type="character" w:default="1" w:styleId="DefaultParagraphFont"><w:name w:val="Default Paragraph Font"/><w:uiPriority w:val="1"/><w:semiHidden/><w:unhideWhenUsed/></w:style>` +
     `<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:uiPriority w:val="99"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>` +
     `<w:style w:type="numbering" w:default="1" w:styleId="NoList"><w:name w:val="No List"/><w:uiPriority w:val="99"/><w:semiHidden/><w:unhideWhenUsed/></w:style>` +
-    `<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="10"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="0" w:after="${twips(0.3, base * 2.3)}" w:line="270" w:lineRule="auto"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:bCs/><w:color w:val="${INK}"/><w:spacing w:val="${Math.round(-0.028 * base * 2.3 * 20)}"/><w:kern w:val="28"/>${size(pt(2.3))}</w:rPr></w:style>` +
+    `<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="10"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="0" w:after="${twips(0.3, base * 2.3)}" w:line="270" w:lineRule="auto"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr>${fonts(HEAD_FONT)}<w:b/><w:bCs/><w:color w:val="${INK}"/><w:spacing w:val="${Math.round(-0.028 * base * 2.3 * 20)}"/><w:kern w:val="28"/>${size(pt(2.3))}</w:rPr></w:style>` +
     heading("Heading1", "heading 1", 0, 1.875, 1.5, 0.42, 1.22) +
-    heading("Heading2", "heading 2", 1, 1.4, 1.45, 0.38, 1.3) +
-    heading("Heading3", "heading 3", 2, 1.15, 1.3, 0.3, 1.4) +
+    heading("Heading2", "heading 2", 1, 1.375, 1.45, 0.6, 1.2) +
+    heading("Heading3", "heading 3", 2, 1, 1.3, 0.3, 1.4) +
     `<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="29"/><w:qFormat/><w:pPr><w:keepLines/><w:spacing w:after="${twips(0.4)}"/><w:ind w:left="${twips(1)}"/></w:pPr><w:rPr><w:color w:val="${INK_2}"/></w:rPr></w:style>` +
     `<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="34"/><w:qFormat/><w:pPr><w:spacing w:before="${twips(0.22)}" w:after="${twips(0.22)}"/><w:contextualSpacing/></w:pPr></w:style>` +
     `<w:style w:type="paragraph" w:styleId="TableList"><w:name w:val="Table List"/><w:basedOn w:val="TableText"/><w:uiPriority w:val="41"/><w:pPr><w:spacing w:before="${twips(0.22, base * 0.9375)}" w:after="${twips(0.22, base * 0.9375)}"/><w:contextualSpacing/></w:pPr></w:style>` +
@@ -1441,8 +1453,8 @@ function stylesXml(face: Typeface): string {
     // Links look as on the page: the text colour, underlined in the accent.
     `<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:basedOn w:val="DefaultParagraphFont"/><w:uiPriority w:val="99"/><w:unhideWhenUsed/><w:rPr><w:u w:val="single" w:color="${ACCENT}"/></w:rPr></w:style>` +
     `<w:style w:type="character" w:styleId="InlineCode"><w:name w:val="Inline Code"/><w:basedOn w:val="DefaultParagraphFont"/><w:uiPriority w:val="39"/><w:qFormat/><w:rPr>${fonts(MONO_FONT)}<w:noProof/>${size(halfPoints(base * (mono ? 0.95 : 0.86)))}<w:shd w:val="clear" w:color="auto" w:fill="${INLINE_CODE_BG}"/></w:rPr></w:style>` +
-    `<w:style w:type="table" w:styleId="DocTable"><w:name w:val="Document Table"/><w:basedOn w:val="TableNormal"/><w:uiPriority w:val="59"/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:tblPr><w:tblBorders>${tableBorder("top", 6, LINE_STRONG)}${tableBorder("left", 6, LINE_STRONG)}${tableBorder("bottom", 6, LINE_STRONG)}${tableBorder("right", 6, LINE_STRONG)}${tableBorder("insideH", 4, LINE)}${tableBorder("insideV", 4, LINE)}</w:tblBorders><w:tblCellMar><w:top w:w="${cellPadY}" w:type="dxa"/><w:left w:w="${cellPadX(base)}" w:type="dxa"/><w:bottom w:w="${cellPadY}" w:type="dxa"/><w:right w:w="${cellPadX(base)}" w:type="dxa"/></w:tblCellMar></w:tblPr>` +
-      `<w:tblStylePr w:type="firstRow"><w:rPr><w:b/><w:bCs/></w:rPr><w:tcPr><w:shd w:val="clear" w:color="auto" w:fill="${TABLE_HEAD}"/></w:tcPr></w:tblStylePr></w:style>` +
+    `<w:style w:type="table" w:styleId="DocTable"><w:name w:val="Document Table"/><w:basedOn w:val="TableNormal"/><w:uiPriority w:val="59"/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:tblPr><w:tblBorders>${tableBorder("insideH", 4, LINE)}</w:tblBorders><w:tblCellMar><w:top w:w="${cellPadY}" w:type="dxa"/><w:left w:w="${cellPadX(base)}" w:type="dxa"/><w:bottom w:w="${cellPadY}" w:type="dxa"/><w:right w:w="${cellPadX(base)}" w:type="dxa"/></w:tblCellMar></w:tblPr>` +
+      `<w:tblStylePr w:type="firstRow"><w:rPr><w:b/><w:bCs/><w:color w:val="FFFFFF"/></w:rPr><w:tcPr><w:shd w:val="clear" w:color="auto" w:fill="${TABLE_HEAD}"/></w:tcPr></w:tblStylePr></w:style>` +
     `</w:styles>`;
 }
 
@@ -1467,7 +1479,7 @@ function numberingXml(lists: ListInstance[]): string {
     if (list.kind === "bullet" || list.kind === "check") {
       const below = ilvl - list.level;
       const bullet = below === 0 ? list.bullet ?? 0 : below > 0 ? Math.min(2, (list.ulDepth ?? 0) + below) : ilvl % 3;
-      return `<w:lvl w:ilvl="${ilvl}"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="${BULLETS[bullet]}"/><w:lvlJc w:val="left"/>${ind}<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:hint="default"/><w:color w:val="${MUTED}"/></w:rPr></w:lvl>`;
+      return `<w:lvl w:ilvl="${ilvl}"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="${BULLETS[bullet]}"/><w:lvlJc w:val="left"/>${ind}<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:hint="default"/><w:color w:val="${ACCENT}"/></w:rPr></w:lvl>`;
     }
     const start = ilvl === list.level ? list.start : 1;
     const below = ilvl - list.level;
@@ -1491,6 +1503,9 @@ const FONT_METADATA: Record<string, string> = {
   Arial: `<w:panose1 w:val="020B0604020202020204"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/>`,
   Georgia: `<w:panose1 w:val="02040502050405020303"/><w:charset w:val="00"/><w:family w:val="roman"/><w:pitch w:val="variable"/>`,
   "Courier New": `<w:panose1 w:val="02070309020205020404"/><w:charset w:val="00"/><w:family w:val="modern"/><w:pitch w:val="fixed"/>`,
+  Inter: `<w:altName w:val="Arial"/><w:panose1 w:val="020B0502030000000004"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/>`,
+  Montserrat: `<w:altName w:val="Arial"/><w:panose1 w:val="00000500000000000000"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/>`,
+  "JetBrains Mono": `<w:altName w:val="Courier New"/><w:panose1 w:val="02000009000000000000"/><w:charset w:val="00"/><w:family w:val="modern"/><w:pitch w:val="fixed"/>`,
   "MS Gothic": `<w:altName w:val="MS Gothic"/><w:panose1 w:val="020B0609070205080204"/><w:charset w:val="80"/><w:family w:val="modern"/><w:pitch w:val="fixed"/>`,
 };
 
@@ -1559,7 +1574,7 @@ export function documentToDocx(source: DocxSource, settings: DocxSettings = {}):
   if (writer.out[0]!.startsWith("<w:p>")) writer.out[0] = paragraphWithSpacing(writer.out[0]!, { before: 0 });
   const body = writer.out.join("");
   const sectPr = `<w:sectPr><w:pgSz w:w="${PAGE.w}" w:h="${PAGE.h}"/><w:pgMar w:top="${PAGE.margin}" w:right="${PAGE.margin}" w:bottom="${PAGE.margin}" w:left="${PAGE.margin}" w:header="720" w:footer="720" w:gutter="0"/><w:cols w:space="720"/></w:sectPr>`;
-  const fonts = new Set([writer.face.font, MONO_FONT, "Arial"]);
+  const fonts = new Set([writer.face.font, HEAD_FONT, MONO_FONT, "Arial"]);
   if (writer.checkboxes) fonts.add("MS Gothic");
   for (const m of body.matchAll(/w:ascii="([^"]+)"/g)) fonts.add(decodeEntities(m[1]!));
   const entries: ZipEntry[] = [
