@@ -31,7 +31,7 @@ const git = (args, opts = {}) => execFileSync("git", args, { encoding: "utf8", .
 
 function ativosTs() {
   const b64 = (f) => readFileSync(join(ATIVOS, f)).toString("base64");
-  const fontes = readdirSync(ATIVOS).filter((f) => f.endsWith(".woff2")).sort().map((f) => {
+  const fontes = readdirSync(ATIVOS).filter((f) => f.endsWith(".woff2")).toSorted().map((f) => {
     const [, familia, peso] = f.match(/^(inter|montserrat|jetbrains-mono)-latin-(\d00)-normal\.woff2$/);
     const nome = { inter: "Inter", montserrat: "Montserrat", "jetbrains-mono": "JetBrains Mono" }[familia];
     return `@font-face{font-family:"${nome}";font-style:normal;font-weight:${peso};font-display:block;src:url(data:font/woff2;base64,${b64(f)}) format("woff2")}`;
@@ -67,7 +67,7 @@ function gerar(destino) {
         const dentro = alvo.startsWith(raiz + "/");
         git(["apply", "--whitespace=nowarn", ...(dentro ? [`--directory=${alvo.slice(raiz.length + 1)}`] : []), patch], { cwd: dentro ? raiz : alvo, stdio: "pipe" });
       } catch (e) {
-        throw new Error(`O patch ${bp}.patch não aplica sobre a versão atual do Cloudflare OS. Refaça as alterações e rode --salvar.\n${e.stderr}`);
+        throw new Error(`O patch ${bp}.patch não aplica sobre a versão atual do Cloudflare OS. Refaça as alterações e rode --salvar.\n${e.stderr}`, { cause: e });
       }
     }
     if (COM_ATIVOS.includes(bp)) writeFileSync(join(destino, bp, GERADO), ativosTs());
