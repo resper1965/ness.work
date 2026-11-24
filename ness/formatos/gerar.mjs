@@ -22,6 +22,9 @@ const ATIVOS = join(aqui, "ativos");
 // Arquivo gerado a partir de ativos/, fora dos patches.
 const GERADO = "files/lib/ness-ativos.ts";
 const COM_ATIVOS = ["workspace-slides", "workspace-docs", "workspace-sheets"];
+// Os que embutem as fontes nos arquivos do Office: o Word em TrueType (.docx), o PowerPoint em EOT
+// (.pptx, embrulhado aqui a partir do TrueType). ativos/ttf.py gera os TrueType.
+const COM_TTF = { "workspace-docs": "ttf", "workspace-slides": "eot" };
 // A biblioteca de PowerPoint de fábrica (Arial, paleta laranja) vai copiada para dentro da
 // Apresentação, onde o patch a ajusta: o Cloudflare OS não deixa trocá-la de fora.
 const BIBLIOTECAS = join(FABRICA, "..", "libraries");
@@ -29,7 +32,7 @@ const VENDORIZADAS = { "workspace-slides": [["pptx/src/pptx.ts", "files/lib/pptx
 
 const git = (args, opts = {}) => execFileSync("git", args, { encoding: "utf8", ...opts });
 
-function ativosTs() {
+function ativosTs(bp) {
   const b64 = (f) => readFileSync(join(ATIVOS, f)).toString("base64");
   const fontes = readdirSync(ATIVOS).filter((f) => f.endsWith(".woff2")).toSorted().map((f) => {
     const [, familia, peso] = f.match(/^(inter|montserrat|jetbrains-mono)-latin-(\d00)-normal\.woff2$/);
@@ -43,6 +46,14 @@ function ativosTs() {
     `export const FONTES_CSS = ${JSON.stringify(fontes.join("\n"))};`,
     `export const LOGO_NEGATIVO_SVG = ${JSON.stringify(svg("ness-negativo.svg"))};`,
     `export const LOGO_POSITIVO_SVG = ${JSON.stringify(svg("ness-positivo.svg"))};`,
+    ...(COM_TTF[bp] === "ttf" ? [
+      "/** As fontes em TrueType (base64) por família e estilo, para embutir no Word. */",
+      `export const FONTES_TTF: Record<string, { regular?: string; bold?: string }> = ${JSON.stringify(fontesTtf())};`,
+    ] : []),
+    ...(COM_TTF[bp] === "eot" ? [
+      "/** As fontes em EOT sem compressão (base64) por família e estilo, para embutir no PowerPoint. */",
+      `export const FONTES_EOT: Record<string, { regular?: string; bold?: string }> = ${JSON.stringify(fontesTtf(eot))};`,
+    ] : []),
     "",
   ].join("\n");
 }
@@ -54,6 +65,54 @@ function base(destino) {
   for (const [bp, pares] of Object.entries(VENDORIZADAS)) {
     for (const [de, para] of pares) cpSync(join(BIBLIOTECAS, de), join(destino, bp, para));
   }
+}
+
+// Uma fonte TrueType embrulhada em EOT 2.1 sem compressão, o formato dos .fntdata do PowerPoint
+// (W3C Submission "Embedded OpenType", seção 2; o mesmo que o fonteditor-core escreve).
+function eot(ttf) {
+  const tabelas = {};
+  for (let i = 0, n = ttf.readUInt16BE(4); i < n; i++) {
+    const e = 12 + i * 16;
+    tabelas[ttf.toString("latin1", e, e + 4)] = ttf.readUInt32BE(e + 8);
+  }
+  const os2 = tabelas["OS/2"], nomeT = tabelas.name;
+  const nomes = {};
+  const base = nomeT + ttf.readUInt16BE(nomeT + 4);
+  for (let i = 0, n = ttf.readUInt16BE(nomeT + 2); i < n; i++) {
+    const r = nomeT + 6 + i * 12;
+    if (ttf.readUInt16BE(r) !== 3 || ttf.readUInt16BE(r + 4) !== 0x409) continue;
+    const bruto = ttf.subarray(base + ttf.readUInt16BE(r + 10), base + ttf.readUInt16BE(r + 10) + ttf.readUInt16BE(r + 8));
+    nomes[ttf.readUInt16BE(r + 6)] = Buffer.from(bruto).swap16(); // UTF-16BE na fonte, LE no EOT
+  }
+  const cab = Buffer.alloc(82);
+  cab.writeUInt32LE(ttf.length, 4);
+  cab.writeUInt32LE(0x00020001, 8);
+  ttf.copy(cab, 16, os2 + 32, os2 + 42); // PANOSE
+  cab.writeUInt8(1, 26); // DEFAULT_CHARSET
+  cab.writeUInt8(ttf.readUInt16BE(os2 + 62) & 1, 27); // itálico
+  cab.writeUInt32LE(ttf.readUInt16BE(os2 + 4), 28); // peso
+  cab.writeUInt16LE(ttf.readUInt16BE(os2 + 8), 32); // fsType
+  cab.writeUInt16LE(0x504c, 34);
+  ttf.copy(cab, 36, os2 + 42, os2 + 58); // UnicodeRange
+  ttf.copy(cab, 52, os2 + 78, os2 + 86); // CodePageRange
+  cab.writeUInt32LE(ttf.readUInt32BE(tabelas.head + 8), 60); // checkSumAdjustment
+  const campo = (b) => { const t = Buffer.alloc(2); t.writeUInt16LE(b.length); return [t, b, Buffer.alloc(2)]; };
+  const partes = [cab, ...[1, 2, 5, 4].flatMap((id) => campo(nomes[id] ?? Buffer.alloc(0)))];
+  partes[partes.length - 1] = Buffer.alloc(2); // Padding5
+  partes.push(Buffer.alloc(2), ttf); // RootStringSize 0, dados
+  const saida = Buffer.concat(partes);
+  saida.writeUInt32LE(saida.length, 0);
+  return saida;
+}
+
+function fontesTtf(converter = (b) => b) {
+  const fontes = {};
+  for (const f of readdirSync(join(ATIVOS, "ttf")).filter((n) => n.endsWith(".ttf")).toSorted()) {
+    const [, nome, estilo] = f.match(/^(inter|montserrat|jetbrainsmono)-(regular|bold)\.ttf$/);
+    const familia = { inter: "Inter", montserrat: "Montserrat", jetbrainsmono: "JetBrains Mono" }[nome];
+    (fontes[familia] ??= {})[estilo] = converter(readFileSync(join(ATIVOS, "ttf", f))).toString("base64");
+  }
+  return fontes;
 }
 
 function gerar(destino) {
@@ -70,7 +129,7 @@ function gerar(destino) {
         throw new Error(`O patch ${bp}.patch não aplica sobre a versão atual do Cloudflare OS. Refaça as alterações e rode --salvar.\n${e.stderr}`, { cause: e });
       }
     }
-    if (COM_ATIVOS.includes(bp)) writeFileSync(join(destino, bp, GERADO), ativosTs());
+    if (COM_ATIVOS.includes(bp)) writeFileSync(join(destino, bp, GERADO), ativosTs(bp));
   }
 }
 

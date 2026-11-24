@@ -1,4 +1,25 @@
 import { createZip, crc32, type ZipEntry } from "@gadgets/bundled-blueprints/libraries/zip/server";
+import { FONTES_EOT } from "./ness-ativos.ts";
+
+// ness.: Inter, Montserrat e JetBrains Mono vão embutidas no .pptx (EOT, o formato dos .fntdata do
+// PowerPoint), para o arquivo abrir com as fontes do NESS Design System numa máquina que não as tem.
+// Licença das fontes: SIL OFL 1.1, que permite embutir.
+const FONTES_EMBUTIDAS: {typeface: string; estilo: "regular" | "bold"; id: string; data: string}[] =
+  Object.entries(FONTES_EOT).flatMap(([typeface, estilos]) =>
+    (["regular", "bold"] as const).filter((estilo) => estilos[estilo]).map((estilo) => ({typeface, estilo, id: "", data: estilos[estilo]!})))
+    .map((f, i) => ({...f, id: `rIdF${i + 1}`}));
+
+function embeddedFontList(): string {
+  if (!FONTES_EMBUTIDAS.length) return "";
+  const porFamilia = new Map<string, string>();
+  for (const f of FONTES_EMBUTIDAS) porFamilia.set(f.typeface, (porFamilia.get(f.typeface) ?? "") + `<p:${f.estilo} r:id="${f.id}"/>`);
+  return "<p:embeddedFontLst>" + [...porFamilia].map(([typeface, refs]) =>
+    `<p:embeddedFont><p:font typeface="${typeface}" pitchFamily="${typeface === "JetBrains Mono" ? 49 : 2}" charset="0"/>${refs}</p:embeddedFont>`).join("") + "</p:embeddedFontLst>";
+}
+
+function base64Bytes(texto: string): Uint8Array {
+  return Uint8Array.from(atob(texto), (c) => c.charCodeAt(0));
+}
 
 type Scalar = string | number | boolean | undefined;
 interface PreparedProps {
@@ -2088,6 +2109,7 @@ function contentTypes(slides: PreparedSlide[], media: Media[]): string {
   let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="${CONTENT_TYPE_NS}">` +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
     '<Default Extension="xml" ContentType="application/xml"/>';
+  if (FONTES_EMBUTIDAS.length) xml += '<Default Extension="fntdata" ContentType="application/x-fontdata"/>';
   const mediaTypes = new Map(media.map(item => [item.extension, item.mime]));
   for (const [extension, mime] of mediaTypes) {
     xml += `<Default Extension="${extension}" ContentType="${mime}"/>`;
@@ -2142,13 +2164,13 @@ function appProperties(slideCount: number): string {
 }
 
 function presentationXml(slideCount: number): string {
-  let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:a="${DML_NS}" xmlns:r="${REL_NS}" xmlns:p="${PML_NS}" saveSubsetFonts="1" autoCompressPictures="0">` +
+  let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentation xmlns:a="${DML_NS}" xmlns:r="${REL_NS}" xmlns:p="${PML_NS}" saveSubsetFonts="1" autoCompressPictures="0"${FONTES_EMBUTIDAS.length ? ' embedTrueTypeFonts="1"' : ""}>` +
     '<p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rId1"/></p:sldMasterIdLst><p:sldIdLst>';
   for (let i = 0; i < slideCount; ++i) {
     xml += `<p:sldId id="${256 + i}" r:id="rId${5 + i}"/>`;
   }
   return xml + `</p:sldIdLst><p:sldSz cx="${SLIDE_WIDTH}" cy="${SLIDE_HEIGHT}" type="screen16x9"/>` +
-    '<p:notesSz cx="6858000" cy="9144000"/><p:defaultTextStyle><a:defPPr>' +
+    '<p:notesSz cx="6858000" cy="9144000"/>' + embeddedFontList() + '<p:defaultTextStyle><a:defPPr>' +
     '<a:defRPr lang="en-US" sz="1800"><a:latin typeface="Inter"/><a:ea typeface="Inter"/><a:cs typeface="Inter"/></a:defRPr>' +
     '</a:defPPr></p:defaultTextStyle></p:presentation>';
 }
@@ -2161,6 +2183,9 @@ function presentationRelationships(slideCount: number): string {
     `<Relationship Id="rId4" Type="${REL_NS}/tableStyles" Target="tableStyles.xml"/>`;
   for (let i = 1; i <= slideCount; ++i) {
     xml += `<Relationship Id="rId${i + 4}" Type="${REL_NS}/slide" Target="slides/slide${i}.xml"/>`;
+  }
+  for (const [i, f] of FONTES_EMBUTIDAS.entries()) {
+    xml += `<Relationship Id="${f.id}" Type="${REL_NS}/font" Target="fonts/font${i + 1}.fntdata"/>`;
   }
   return xml + "</Relationships>";
 }
@@ -2273,6 +2298,7 @@ export function deckToPptx(deck: unknown, adaptBlock?: PptxBlockAdapter): Readab
     {name: "ppt/slideLayouts/slideLayout1.xml", data: slideLayout()},
     {name: "ppt/slideLayouts/_rels/slideLayout1.xml.rels", data: slideLayoutRelationships()},
     {name: "ppt/theme/theme1.xml", data: themeXml()},
+    ...FONTES_EMBUTIDAS.map((f, i) => ({name: `ppt/fonts/font${i + 1}.fntdata`, data: new Blob([base64Bytes(f.data)]).stream()})),
   ];
   for (let i = 0; i < prepared.slides.length; ++i) {
     const slide = prepared.slides[i];

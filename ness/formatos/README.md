@@ -14,9 +14,10 @@ NESS Design System (artefato `b50ac553-96f2-4766-92ff-71aefb7ef376`). O motor é
   mais as alterações em `patches/<blueprint>.patch`. A biblioteca de PowerPoint de fábrica vai copiada
   para dentro da Apresentação (`files/lib/pptx-base.ts`), porque o Cloudflare OS não deixa trocá-la de
   fora.
-- `ativos/` guarda as fontes (Montserrat, Inter, JetBrains Mono, woff2 idênticos aos do design system)
-  e os logotipos. O gerador os embute em `files/lib/ness-ativos.ts` de cada formato: as exportações só
-  aceitam fontes em `data:`.
+- `ativos/` guarda as fontes (Montserrat, Inter, JetBrains Mono, woff2 idênticos aos do design system),
+  os logotipos e `ttf/`, as mesmas fontes em TrueType para o Office (gerado por `ativos/ttf.py`). O
+  gerador os embute em `files/lib/ness-ativos.ts` de cada formato: as exportações só aceitam fontes em
+  `data:`; o Word recebe o TrueType ofuscado (.odttf) e o PowerPoint o EOT (.fntdata).
 
 ## Comandos
 
@@ -46,8 +47,9 @@ o gerador falha nomeando o formato; refaça a alteração sobre a versão nova e
 
 ## Limites conhecidos
 
-- O `.pptx` e o `.docx` usam as fontes do DS, mas não as levam dentro: em máquina sem Montserrat ou Inter,
-  o Office troca por outra face.
+- O `.pptx` e o `.docx` levam as fontes dentro (cerca de 270 KB a mais por arquivo). O `.docx` foi
+  conferido no LibreOffice sem as fontes instaladas; o `.fntdata` do `.pptx`, com a libeot (o LibreOffice
+  24.2 não lê fontes embutidas em `.pptx`). Falta conferir no PowerPoint.
 - O texto do `.pptx` é medido com métricas de Arial: pode quebrar linha um pouco diferente da tela.
 - O Word não tem a capa near-black (só o PDF); as seções numeradas e o ▸ vão como texto em BlueDot.
 - Decks antigos guardam o fundo laranja e a barra de gradiente que já tinham; só slides novos nascem no

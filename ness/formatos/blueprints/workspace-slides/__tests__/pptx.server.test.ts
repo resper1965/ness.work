@@ -367,3 +367,23 @@ describe("Slides PowerPoint logos", () => {
     expect(runs(shapeNamed(text(parts, "ppt/slides/slide2.xml"), "Block 1 title"))).toEqual([["Latency fell ", "000000"], ["38%", "00ADE8"]]); // ness.: BlueDot
   });
 });
+
+describe("ness.: fontes embutidas", () => {
+  it("embute Inter, Montserrat e JetBrains Mono em EOT, como o PowerPoint guarda", async () => {
+    const parts = await exportDeck({ slides: [slide([])] });
+    const presentation = text(parts, "ppt/presentation.xml");
+    expect(presentation).toContain('embedTrueTypeFonts="1"');
+    expect(presentation).toMatch(/<p:embeddedFont><p:font typeface="Montserrat"[^>]*\/><p:regular r:id="rIdF\d"\/><p:bold r:id="rIdF\d"\/><\/p:embeddedFont>/);
+    expect(text(parts, "[Content_Types].xml")).toContain('<Default Extension="fntdata" ContentType="application/x-fontdata"/>');
+    const rels = text(parts, "ppt/_rels/presentation.xml.rels");
+    for (let i = 1; i <= 5; i++) {
+      expect(rels).toContain(`Target="fonts/font${i}.fntdata"`);
+      const eot = parts.get(`ppt/fonts/font${i}.fntdata`)!;
+      // Cabeçalho EOT: tamanho total, versão 0x00020001 e o número mágico 0x504C.
+      const view = new DataView(eot.buffer, eot.byteOffset, eot.byteLength);
+      expect(view.getUint32(0, true)).toBe(eot.byteLength);
+      expect(view.getUint32(8, true)).toBe(0x00020001);
+      expect(view.getUint16(34, true)).toBe(0x504c);
+    }
+  });
+});

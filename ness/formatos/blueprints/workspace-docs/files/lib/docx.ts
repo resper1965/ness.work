@@ -23,6 +23,7 @@
 import { type ZipEntry, createZip } from "@gadgets/bundled-blueprints/libraries/zip/server";
 import { VOID_TAGS } from "./merge.ts";
 import type { DocFont, DocSettings } from "./protocol.ts";
+import { fontesEmbutidas } from "./ness-fontes-word.ts";
 
 /* ═══════════════════════ 1. Limits, units & XML ════════════════════════════ */
 
@@ -1509,7 +1510,7 @@ function numberingXml(lists: ListInstance[]): string {
   return XML_HEAD + `<w:numbering ${W_NS}>${abstracts}${nums}</w:numbering>`;
 }
 
-const SETTINGS_XML = XML_HEAD + `<w:settings ${W_NS} xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="w14"><w:zoom w:percent="100"/><w:defaultTabStop w:val="720"/><w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/><w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/><w:compatSetting w:name="enableOpenTypeFeatures" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/><w:compatSetting w:name="doNotFlipMirrorIndents" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/></w:compat></w:settings>`;
+const SETTINGS_XML = XML_HEAD + `<w:settings ${W_NS} xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="w14"><w:zoom w:percent="100"/><w:embedTrueTypeFonts/><w:defaultTabStop w:val="720"/><w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/><w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/><w:compatSetting w:name="enableOpenTypeFeatures" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/><w:compatSetting w:name="doNotFlipMirrorIndents" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/></w:compat></w:settings>`;
 
 // Font metadata lets a reader without the face pick a close substitute.
 const FONT_METADATA: Record<string, string> = {
@@ -1522,8 +1523,9 @@ const FONT_METADATA: Record<string, string> = {
   "MS Gothic": `<w:altName w:val="MS Gothic"/><w:panose1 w:val="020B0609070205080204"/><w:charset w:val="80"/><w:family w:val="modern"/><w:pitch w:val="fixed"/>`,
 };
 
-function fontTableXml(fonts: Set<string>): string {
-  return XML_HEAD + `<w:fonts ${W_NS}>${[...fonts].map((f) => `<w:font w:name="${xmlAttr(f)}">${FONT_METADATA[f] ?? ""}</w:font>`).join("")}</w:fonts>`;
+// ness.: `embeds` são os elementos das fontes embutidas (lib/ness-fontes-word.ts), por família.
+function fontTableXml(fonts: Set<string>, embeds: Map<string, string> = new Map()): string {
+  return XML_HEAD + `<w:fonts ${W_NS}>${[...fonts].map((f) => `<w:font w:name="${xmlAttr(f)}">${FONT_METADATA[f] ?? ""}${embeds.get(f) ?? ""}</w:font>`).join("")}</w:fonts>`;
 }
 
 function coreXml(title: string, modified: number): string {
@@ -1533,11 +1535,12 @@ function coreXml(title: string, modified: number): string {
 
 const APP_XML = XML_HEAD + `<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Docs</Application><DocSecurity>0</DocSecurity></Properties>`;
 
-function contentTypesXml(media: Media[]): string {
+function contentTypesXml(media: Media[], fonts = false): string {
   const types = new Set(media.map((m) => m.type));
   const word = "application/vnd.openxmlformats-officedocument.wordprocessingml";
   return XML_HEAD + `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>` +
     [...types].map((t) => `<Default Extension="${t}" ContentType="image/${t}"/>`).join("") +
+    (fonts ? `<Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>` : "") +
     `<Override PartName="/word/document.xml" ContentType="${word}.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="${word}.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="${word}.numbering+xml"/><Override PartName="/word/settings.xml" ContentType="${word}.settings+xml"/><Override PartName="/word/fontTable.xml" ContentType="${word}.fontTable+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`;
 }
 
@@ -1590,8 +1593,9 @@ export function documentToDocx(source: DocxSource, settings: DocxSettings = {}):
   const fonts = new Set([writer.face.font, HEAD_FONT, MONO_FONT, "Arial"]);
   if (writer.checkboxes) fonts.add("MS Gothic");
   for (const m of body.matchAll(/w:ascii="([^"]+)"/g)) fonts.add(decodeEntities(m[1]!));
+  const embutidas = fontesEmbutidas(fonts);
   const entries: ZipEntry[] = [
-    { name: "[Content_Types].xml", data: contentTypesXml(writer.media) },
+    { name: "[Content_Types].xml", data: contentTypesXml(writer.media, embutidas.partes.length > 0) },
     { name: "_rels/.rels", data: ROOT_RELS },
     { name: "docProps/core.xml", data: coreXml(documentTitle(fragments), Number(source.lastModified)) },
     { name: "docProps/app.xml", data: APP_XML },
@@ -1599,7 +1603,9 @@ export function documentToDocx(source: DocxSource, settings: DocxSettings = {}):
     { name: "word/styles.xml", data: stylesXml(writer.face) },
     { name: "word/numbering.xml", data: numberingXml(writer.lists) },
     { name: "word/settings.xml", data: SETTINGS_XML },
-    { name: "word/fontTable.xml", data: fontTableXml(fonts) },
+    { name: "word/fontTable.xml", data: fontTableXml(fonts, embutidas.elementos) },
+    ...(embutidas.rels ? [{ name: "word/_rels/fontTable.xml.rels", data: embutidas.rels }] : []),
+    ...embutidas.partes.map((f) => ({ name: f.name, data: new Blob([f.bytes]).stream() })),
     { name: "word/_rels/document.xml.rels", data: documentRelsXml(writer.relationships) },
     ...writer.media.map((m) => ({ name: "word/media/" + m.name, data: new Blob([m.bytes]).stream() })),
   ];

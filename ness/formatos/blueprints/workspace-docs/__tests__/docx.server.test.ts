@@ -77,8 +77,14 @@ describe("Word export", () => {
     const { entries, part } = await exportDocx(["<p>Plan</p>", "<p>Hello</p>"]);
     expect([...entries.keys()].toSorted()).toEqual([
       "[Content_Types].xml", "_rels/.rels", "docProps/app.xml", "docProps/core.xml", "word/_rels/document.xml.rels",
-      "word/document.xml", "word/fontTable.xml", "word/numbering.xml", "word/settings.xml", "word/styles.xml",
+      // ness.: as fontes do NESS Design System, embutidas e ofuscadas.
+      "word/_rels/fontTable.xml.rels", "word/document.xml", "word/fontTable.xml",
+      "word/fonts/font1.odttf", "word/fonts/font2.odttf", "word/fonts/font3.odttf", "word/fonts/font4.odttf", "word/fonts/font5.odttf",
+      "word/numbering.xml", "word/settings.xml", "word/styles.xml",
     ]);
+    expect(part("word/fontTable.xml")).toMatch(/<w:font w:name="Montserrat">.*<w:embedRegular r:id="rIdF\d" w:fontKey="\{[0-9A-F-]{36}\}"\/><w:embedBold /);
+    expect(part("word/settings.xml")).toContain("<w:embedTrueTypeFonts/>");
+    expect(part("[Content_Types].xml")).toContain('<Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>');
     expect(part("docProps/core.xml")).toContain("<dc:title>Plan</dc:title>");
     expect(part("[Content_Types].xml")).toContain('PartName="/word/document.xml"');
     expect(part("_rels/.rels")).toContain('Target="word/document.xml"');
@@ -451,5 +457,20 @@ describe("Word export", () => {
     expect(part("word/numbering.xml")).toContain('<w:start w:val="32767"/>');
     expect(document).not.toContain("NaN");
     expect(Number(attr(document, /<wp:extent cx="(\d+)"/))).toBeGreaterThan(1);
+  });
+});
+
+describe("ness.: fontes embutidas", () => {
+  it("ofusca só os 32 primeiros bytes, e a ofuscação se desfaz com a mesma chave", async () => {
+    const { ofuscar } = await import("../files/lib/ness-fontes-word.ts");
+    const fonte = Uint8Array.from({ length: 64 }, (_, i) => i);
+    const chave = "{6E1C2A01-5A3B-4C7D-9E10-0A5E5E000001}";
+    const ofuscada = ofuscar(fonte, chave);
+    // O primeiro byte é XOR com o último par do GUID (01); o 16.º com o primeiro (6E).
+    expect(ofuscada[0]).toBe(0 ^ 0x01);
+    expect(ofuscada[15]).toBe(15 ^ 0x6e);
+    expect(ofuscada[16]).toBe(16 ^ 0x01);
+    expect([...ofuscada.slice(32)]).toEqual([...fonte.slice(32)]);
+    expect([...ofuscar(ofuscada, chave)]).toEqual([...fonte]);
   });
 });
