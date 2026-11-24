@@ -284,7 +284,8 @@ describe("Word export", () => {
 
   it("keeps a heading that starts a list item a heading, numbered with the item", async () => {
     const { document } = await exportDocx(["<ol><li>First</li><li><h2>Section</h2><p>Body</p></li></ol>"]);
-    const heading = paragraph(document, "Section");
+    // ness.: numerada como a seção 01, como no editor.
+    const heading = paragraph(document, "01\u2002\u2002Section");
     expect(attr(heading, /<w:pStyle w:val="([^"]+)"/)).toBe("Heading2");
     expect(heading).toMatch(/<w:numPr><w:ilvl w:val="0"\/><w:numId w:val="1"\/><\/w:numPr>/);
     expect(attr(paragraph(document, "First"), /<w:pStyle w:val="([^"]+)"/)).toBe("ListParagraph");

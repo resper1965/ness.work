@@ -939,6 +939,15 @@ class DocxWriter {
   /** ness.: o número da próxima seção (h2). */
   #secao = 0;
 
+  /**
+   * ness.: o marcador de um título, como o editor o desenha (CSS): "01", "02"… nas seções (h2) e ▸
+   * nos subtítulos (h3, h4), em BlueDot. Avança a numeração; vazio para os demais.
+   */
+  #marca(tag: string): string {
+    const marca = tag === "h2" ? String(++this.#secao).padStart(2, "0") + "\u2002\u2002" : tag === "h3" || tag === "h4" ? "\u25B8\u2002" : "";
+    return marca ? `<w:r><w:rPr><w:color w:val="${ACCENT}"/></w:rPr><w:t xml:space="preserve">${marca}</w:t></w:r>` : "";
+  }
+
   #block(node: ElementNode, state: BlockState): void {
     const tag = node.tag;
     const css = parseStyle(node.attrs.style);
@@ -946,9 +955,7 @@ class DocxWriter {
     if (heading) {
       const title = tag === "h1" && /(^|\s)doc-title(\s|$)/.test(node.attrs.class ?? "");
       const options = this.#paragraphOptions(state, node, { style: title ? "Title" : heading });
-      // ness.: seções numeradas (01, 02…) e subtítulos com ▸, em BlueDot, como no editor.
-      const marca = tag === "h2" ? String(++this.#secao).padStart(2, "0") + "\u2002\u2002" : tag === "h3" || tag === "h4" ? "\u25B8\u2002" : "";
-      if (marca) options.prefix = `<w:r><w:rPr><w:color w:val="${ACCENT}"/></w:rPr><w:t xml:space="preserve">${marca}</w:t></w:r>` + (options.prefix ?? "");
+      options.prefix = (options.prefix ?? "") + this.#marca(tag);
       this.#paragraph(node.children, options);
       return;
     }
@@ -1120,8 +1127,13 @@ class DocxWriter {
         const options = this.#paragraphOptions(itemState, leading, { style: leadingHeading });
         const body = halfPoints(this.basePt * (state.style === "TableText" ? 0.9375 : 1));
         options.pPr += `<w:rPr><w:b w:val="0"/><w:bCs w:val="0"/><w:color w:val="${MUTED}"/><w:sz w:val="${body}"/><w:szCs w:val="${body}"/></w:rPr>`;
+        options.prefix = (options.prefix ?? "") + this.#marca(leading.tag);
         this.#paragraph(leading.children, options);
-      } else if (leading) this.#paragraph(leading.children, this.#paragraphOptions(itemState, leading, leadingHeading ? { style: leadingHeading } : {}));
+      } else if (leading) {
+        const options = this.#paragraphOptions(itemState, leading, leadingHeading ? { style: leadingHeading } : {});
+        options.prefix = (options.prefix ?? "") + this.#marca(leading.tag);
+        this.#paragraph(leading.children, options);
+      }
       else this.#paragraph(inline, this.#paragraphOptions(itemState, null));
       for (const child of nested) {
         if (LIST_TAGS.test(child.tag)) {

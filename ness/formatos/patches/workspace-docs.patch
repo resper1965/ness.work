@@ -1,5 +1,5 @@
 diff --git a/__tests__/docx.server.test.ts b/__tests__/docx.server.test.ts
-index 0307296..9eb3be3 100644
+index 0307296..37e4e23 100644
 --- a/__tests__/docx.server.test.ts
 +++ b/__tests__/docx.server.test.ts
 @@ -93,9 +93,10 @@ describe("Word export", () => {
@@ -56,7 +56,7 @@ index 0307296..9eb3be3 100644
      expect(attr(paragraph(box, "let x"), /<w:pStyle w:val="([^"]+)"/)).toBe("Code");
      const styles = part("word/styles.xml");
      const code = /<w:style [^>]*w:styleId="Code">.*?<\/w:style>/.exec(styles)![0];
-@@ -277,8 +278,8 @@ describe("Word export", () => {
+@@ -277,19 +278,20 @@ describe("Word export", () => {
      const quoted = paragraph(document, "quoted");
      expect(document.match(/<w:tbl>/g)).toHaveLength(1);
      const borders = [...quoted.matchAll(/<w:(top|left|bottom|right) w:val="single" w:sz="(\d+)" w:space="\d+" w:color="([0-9A-F]{6})"\/>/g)];
@@ -67,7 +67,12 @@ index 0307296..9eb3be3 100644
    });
  
    it("keeps a heading that starts a list item a heading, numbered with the item", async () => {
-@@ -289,7 +290,7 @@ describe("Word export", () => {
+     const { document } = await exportDocx(["<ol><li>First</li><li><h2>Section</h2><p>Body</p></li></ol>"]);
+-    const heading = paragraph(document, "Section");
++    // ness.: numerada como a seção 01, como no editor.
++    const heading = paragraph(document, "01\u2002\u2002Section");
+     expect(attr(heading, /<w:pStyle w:val="([^"]+)"/)).toBe("Heading2");
+     expect(heading).toMatch(/<w:numPr><w:ilvl w:val="0"\/><w:numId w:val="1"\/><\/w:numPr>/);
      expect(attr(paragraph(document, "First"), /<w:pStyle w:val="([^"]+)"/)).toBe("ListParagraph");
      // Word draws the number in the paragraph mark's formatting: the page's marker is the item's
      // (body size, plain, muted), not the heading's. The mark's properties close the pPr.
@@ -76,7 +81,7 @@ index 0307296..9eb3be3 100644
      expect(paragraph(document, "First")).not.toContain("<w:rPr><w:b w:val=\"0\"/>");
    });
  
-@@ -344,9 +345,9 @@ describe("Word export", () => {
+@@ -344,9 +346,9 @@ describe("Word export", () => {
    it("repeats the text colour on links, which Apple's readers would otherwise paint blue", async () => {
      const { document } = await exportDocx(['<p><a href="https://a.example">plain</a> <span class="tc-red"><a href="https://b.example">red</a></span></p>', '<blockquote><a href="https://c.example">quoted</a></blockquote>']);
      const runOf = (text: string) => [...document.matchAll(/<w:r>([\s\S]*?)<\/w:r>/g)].map((m) => m[1]!).find((r) => textOf(r) === text)!;
@@ -88,7 +93,7 @@ index 0307296..9eb3be3 100644
    });
  
    it("expands a code block's tabs to the page's two-column stops", async () => {
-@@ -406,7 +407,7 @@ describe("Word export", () => {
+@@ -406,7 +408,7 @@ describe("Word export", () => {
      expect(attr(paragraph(document, "Intro"), /<w:left w:val="single" w:sz="12" w:space="(\d+)"/)).toBe("10");
      // The item's first line starts at 200 + 420 - 300 = 320 twips, 16pt right of the rule at 0.
      expect(attr(paragraph(document, "quoted item"), /<w:left w:val="single" w:sz="12" w:space="(\d+)"/)).toBe("16");
@@ -97,7 +102,7 @@ index 0307296..9eb3be3 100644
      expect(paragraph(document, "Intro")).toContain("<w:keepNext/>");
      expect(paragraph(document, "quoted item")).toContain("<w:keepNext/>");
      expect(paragraph(document, "Outro")).not.toContain("<w:keepNext/>");
-@@ -444,8 +445,8 @@ describe("Word export", () => {
+@@ -444,8 +446,8 @@ describe("Word export", () => {
        `<p><img src="${PNG}" style="width: .px;" width="0"></p>`,
      ]);
      expect(attr(paragraph(document, "huge"), /<w:sz w:val="(\d+)"/)).toBe("3276");
@@ -160,7 +165,7 @@ index f6eef04..9d74b68 100644
  // the PDF's text matches the screen (but never wait more than 1.5 s).
  if (isExport && document.fonts) await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1500))]);
 diff --git a/files/lib/docx.ts b/files/lib/docx.ts
-index 5976ad7..ebb7895 100644
+index 5976ad7..bb6f02a 100644
 --- a/files/lib/docx.ts
 +++ b/files/lib/docx.ts
 @@ -57,8 +57,8 @@ export interface DocxSource {
@@ -240,12 +245,21 @@ index 5976ad7..ebb7895 100644
      }
      // A hanging marker (a number, bullet or to-do checkbox) is followed by a tab to the text's indent.
      if (state.hanging) pPr.push(`<w:tabs><w:tab w:val="left" w:pos="${leftTwips}"/></w:tabs>`);
-@@ -930,13 +936,20 @@ class DocxWriter {
+@@ -930,13 +936,27 @@ class DocxWriter {
      };
    }
  
 +  /** ness.: o número da próxima seção (h2). */
 +  #secao = 0;
++
++  /**
++   * ness.: o marcador de um título, como o editor o desenha (CSS): "01", "02"… nas seções (h2) e ▸
++   * nos subtítulos (h3, h4), em BlueDot. Avança a numeração; vazio para os demais.
++   */
++  #marca(tag: string): string {
++    const marca = tag === "h2" ? String(++this.#secao).padStart(2, "0") + "\u2002\u2002" : tag === "h3" || tag === "h4" ? "\u25B8\u2002" : "";
++    return marca ? `<w:r><w:rPr><w:color w:val="${ACCENT}"/></w:rPr><w:t xml:space="preserve">${marca}</w:t></w:r>` : "";
++  }
 +
    #block(node: ElementNode, state: BlockState): void {
      const tag = node.tag;
@@ -255,14 +269,27 @@ index 5976ad7..ebb7895 100644
        const title = tag === "h1" && /(^|\s)doc-title(\s|$)/.test(node.attrs.class ?? "");
 -      this.#paragraph(node.children, this.#paragraphOptions(state, node, { style: title ? "Title" : heading }));
 +      const options = this.#paragraphOptions(state, node, { style: title ? "Title" : heading });
-+      // ness.: seções numeradas (01, 02…) e subtítulos com ▸, em BlueDot, como no editor.
-+      const marca = tag === "h2" ? String(++this.#secao).padStart(2, "0") + "\u2002\u2002" : tag === "h3" || tag === "h4" ? "\u25B8\u2002" : "";
-+      if (marca) options.prefix = `<w:r><w:rPr><w:color w:val="${ACCENT}"/></w:rPr><w:t xml:space="preserve">${marca}</w:t></w:r>` + (options.prefix ?? "");
++      options.prefix = (options.prefix ?? "") + this.#marca(tag);
 +      this.#paragraph(node.children, options);
        return;
      }
      switch (tag) {
-@@ -1414,7 +1427,7 @@ function stylesXml(face: Typeface): string {
+@@ -1107,8 +1127,13 @@ class DocxWriter {
+         const options = this.#paragraphOptions(itemState, leading, { style: leadingHeading });
+         const body = halfPoints(this.basePt * (state.style === "TableText" ? 0.9375 : 1));
+         options.pPr += `<w:rPr><w:b w:val="0"/><w:bCs w:val="0"/><w:color w:val="${MUTED}"/><w:sz w:val="${body}"/><w:szCs w:val="${body}"/></w:rPr>`;
++        options.prefix = (options.prefix ?? "") + this.#marca(leading.tag);
++        this.#paragraph(leading.children, options);
++      } else if (leading) {
++        const options = this.#paragraphOptions(itemState, leading, leadingHeading ? { style: leadingHeading } : {});
++        options.prefix = (options.prefix ?? "") + this.#marca(leading.tag);
+         this.#paragraph(leading.children, options);
+-      } else if (leading) this.#paragraph(leading.children, this.#paragraphOptions(itemState, leading, leadingHeading ? { style: leadingHeading } : {}));
++      }
+       else this.#paragraph(inline, this.#paragraphOptions(itemState, null));
+       for (const child of nested) {
+         if (LIST_TAGS.test(child.tag)) {
+@@ -1414,7 +1439,7 @@ function stylesXml(face: Typeface): string {
    const fonts = (name: string): string => `<w:rFonts w:ascii="${name}" w:eastAsia="${name}" w:hAnsi="${name}" w:cs="${name}"/>`;
    const size = (halves: number): string => `<w:sz w:val="${halves}"/><w:szCs w:val="${halves}"/>`;
    const heading = (id: string, name: string, level: number, em: number, before: number, after: number, line: number): string =>
@@ -271,7 +298,7 @@ index 5976ad7..ebb7895 100644
    const tableBorder = (side: string, sz: number, color: string): string => `<w:${side} w:val="single" w:sz="${sz}" w:space="0" w:color="${color}"/>`;
    const cellPadY = twips(0.42, base * 0.9375);
    return XML_HEAD + `<w:styles ${W_NS}>` +
-@@ -1425,10 +1438,10 @@ function stylesXml(face: Typeface): string {
+@@ -1425,10 +1450,10 @@ function stylesXml(face: Typeface): string {
      `<w:style w:type="character" w:default="1" w:styleId="DefaultParagraphFont"><w:name w:val="Default Paragraph Font"/><w:uiPriority w:val="1"/><w:semiHidden/><w:unhideWhenUsed/></w:style>` +
      `<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:uiPriority w:val="99"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>` +
      `<w:style w:type="numbering" w:default="1" w:styleId="NoList"><w:name w:val="No List"/><w:uiPriority w:val="99"/><w:semiHidden/><w:unhideWhenUsed/></w:style>` +
@@ -285,7 +312,7 @@ index 5976ad7..ebb7895 100644
      `<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="29"/><w:qFormat/><w:pPr><w:keepLines/><w:spacing w:after="${twips(0.4)}"/><w:ind w:left="${twips(1)}"/></w:pPr><w:rPr><w:color w:val="${INK_2}"/></w:rPr></w:style>` +
      `<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="34"/><w:qFormat/><w:pPr><w:spacing w:before="${twips(0.22)}" w:after="${twips(0.22)}"/><w:contextualSpacing/></w:pPr></w:style>` +
      `<w:style w:type="paragraph" w:styleId="TableList"><w:name w:val="Table List"/><w:basedOn w:val="TableText"/><w:uiPriority w:val="41"/><w:pPr><w:spacing w:before="${twips(0.22, base * 0.9375)}" w:after="${twips(0.22, base * 0.9375)}"/><w:contextualSpacing/></w:pPr></w:style>` +
-@@ -1441,8 +1454,8 @@ function stylesXml(face: Typeface): string {
+@@ -1441,8 +1466,8 @@ function stylesXml(face: Typeface): string {
      // Links look as on the page: the text colour, underlined in the accent.
      `<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:basedOn w:val="DefaultParagraphFont"/><w:uiPriority w:val="99"/><w:unhideWhenUsed/><w:rPr><w:u w:val="single" w:color="${ACCENT}"/></w:rPr></w:style>` +
      `<w:style w:type="character" w:styleId="InlineCode"><w:name w:val="Inline Code"/><w:basedOn w:val="DefaultParagraphFont"/><w:uiPriority w:val="39"/><w:qFormat/><w:rPr>${fonts(MONO_FONT)}<w:noProof/>${size(halfPoints(base * (mono ? 0.95 : 0.86)))}<w:shd w:val="clear" w:color="auto" w:fill="${INLINE_CODE_BG}"/></w:rPr></w:style>` +
@@ -296,7 +323,7 @@ index 5976ad7..ebb7895 100644
      `</w:styles>`;
  }
  
-@@ -1467,7 +1480,7 @@ function numberingXml(lists: ListInstance[]): string {
+@@ -1467,7 +1492,7 @@ function numberingXml(lists: ListInstance[]): string {
      if (list.kind === "bullet" || list.kind === "check") {
        const below = ilvl - list.level;
        const bullet = below === 0 ? list.bullet ?? 0 : below > 0 ? Math.min(2, (list.ulDepth ?? 0) + below) : ilvl % 3;
@@ -305,7 +332,7 @@ index 5976ad7..ebb7895 100644
      }
      const start = ilvl === list.level ? list.start : 1;
      const below = ilvl - list.level;
-@@ -1491,6 +1504,9 @@ const FONT_METADATA: Record<string, string> = {
+@@ -1491,6 +1516,9 @@ const FONT_METADATA: Record<string, string> = {
    Arial: `<w:panose1 w:val="020B0604020202020204"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/>`,
    Georgia: `<w:panose1 w:val="02040502050405020303"/><w:charset w:val="00"/><w:family w:val="roman"/><w:pitch w:val="variable"/>`,
    "Courier New": `<w:panose1 w:val="02070309020205020404"/><w:charset w:val="00"/><w:family w:val="modern"/><w:pitch w:val="fixed"/>`,
@@ -315,7 +342,7 @@ index 5976ad7..ebb7895 100644
    "MS Gothic": `<w:altName w:val="MS Gothic"/><w:panose1 w:val="020B0609070205080204"/><w:charset w:val="80"/><w:family w:val="modern"/><w:pitch w:val="fixed"/>`,
  };
  
-@@ -1559,7 +1575,7 @@ export function documentToDocx(source: DocxSource, settings: DocxSettings = {}):
+@@ -1559,7 +1587,7 @@ export function documentToDocx(source: DocxSource, settings: DocxSettings = {}):
    if (writer.out[0]!.startsWith("<w:p>")) writer.out[0] = paragraphWithSpacing(writer.out[0]!, { before: 0 });
    const body = writer.out.join("");
    const sectPr = `<w:sectPr><w:pgSz w:w="${PAGE.w}" w:h="${PAGE.h}"/><w:pgMar w:top="${PAGE.margin}" w:right="${PAGE.margin}" w:bottom="${PAGE.margin}" w:left="${PAGE.margin}" w:header="720" w:footer="720" w:gutter="0"/><w:cols w:space="720"/></w:sectPr>`;
