@@ -71,6 +71,9 @@ export default defineConfig({
       // The submodule lints itself, with its own config and its own per-directory overrides.
       // Linting it from here would report findings nobody in this repository can fix.
       'cloudflare-os/**',
+      // Generated from upstream's blueprints plus ness/formatos/patches: upstream's code and style,
+      // checked by `node ness/formatos/gerar.mjs --testar` with upstream's own tsc and tests.
+      'ness/formatos/blueprints/**',
       '**/dist/**',
       '**/generated/**',
       '**/*.gen.ts',

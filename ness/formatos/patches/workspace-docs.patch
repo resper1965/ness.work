@@ -1,0 +1,628 @@
+diff --git a/__tests__/docx.server.test.ts b/__tests__/docx.server.test.ts
+index 0307296..99e58e0 100644
+--- a/__tests__/docx.server.test.ts
++++ b/__tests__/docx.server.test.ts
+@@ -77,8 +77,14 @@ describe("Word export", () => {
+     const { entries, part } = await exportDocx(["<p>Plan</p>", "<p>Hello</p>"]);
+     expect([...entries.keys()].toSorted()).toEqual([
+       "[Content_Types].xml", "_rels/.rels", "docProps/app.xml", "docProps/core.xml", "word/_rels/document.xml.rels",
+-      "word/document.xml", "word/fontTable.xml", "word/numbering.xml", "word/settings.xml", "word/styles.xml",
++      // ness.: as fontes do NESS Design System, embutidas e ofuscadas.
++      "word/_rels/fontTable.xml.rels", "word/document.xml", "word/fontTable.xml",
++      "word/fonts/font1.odttf", "word/fonts/font2.odttf", "word/fonts/font3.odttf", "word/fonts/font4.odttf", "word/fonts/font5.odttf",
++      "word/numbering.xml", "word/settings.xml", "word/styles.xml",
+     ]);
++    expect(part("word/fontTable.xml")).toMatch(/<w:font w:name="Montserrat">.*<w:embedRegular r:id="rIdF\d" w:fontKey="\{[0-9A-F-]{36}\}"\/><w:embedBold /);
++    expect(part("word/settings.xml")).toContain("<w:embedTrueTypeFonts/>");
++    expect(part("[Content_Types].xml")).toContain('<Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>');
+     expect(part("docProps/core.xml")).toContain("<dc:title>Plan</dc:title>");
+     expect(part("[Content_Types].xml")).toContain('PartName="/word/document.xml"');
+     expect(part("_rels/.rels")).toContain('Target="word/document.xml"');
+@@ -93,9 +99,10 @@ describe("Word export", () => {
+   it("maps headings to Word's heading styles, h4 and below to the third", async () => {
+     const { document } = await exportDocx(["<h1>One</h1>", "<h2>Two</h2>", "<h3>Three</h3>", "<h4>Four</h4>", "<p>Body</p>"]);
+     expect(attr(paragraph(document, "One"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading1");
+-    expect(attr(paragraph(document, "Two"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading2");
+-    expect(attr(paragraph(document, "Three"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading3");
+-    expect(attr(paragraph(document, "Four"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading3");
++    // ness.: seções numeradas e subtítulos com ▸, em BlueDot.
++    expect(attr(paragraph(document, "01\u2002\u2002Two"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading2");
++    expect(attr(paragraph(document, "\u25B8\u2002Three"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading3");
++    expect(attr(paragraph(document, "\u25B8\u2002Four"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading3");
+     expect(paragraph(document, "Body")).not.toContain("<w:pStyle");
+   });
+ 
+@@ -176,11 +183,11 @@ describe("Word export", () => {
+       '<tr><td colspan="2">Wide</td></tr><tr><td rowspan="2">Tall</td><td>a</td></tr><tr><td>b</td></tr></tbody></table>',
+     ]);
+     const table = /<w:tbl>[\s\S]*<\/w:tbl>/.exec(document)![0];
+-    expect([...table.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => Number(m[1]))).toEqual([2340, 7020]);
++    expect([...table.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => Number(m[1]))).toEqual([2438, 7314]); // ness.: A4, 9752 twips de largura útil
+     expect(table).toContain('w:firstRow="1"');
+     const rows = table.match(/<w:tr>[\s\S]*?<\/w:tr>/g)!;
+     expect(rows).toHaveLength(4);
+-    expect(rows[0]).toContain('<w:shd w:val="clear" w:color="auto" w:fill="F7F7F8"/>');
++    expect(rows[0]).toContain('<w:shd w:val="clear" w:color="auto" w:fill="0F172A"/>');
+     // The header row repeats on each page the table runs onto; only it does.
+     expect(rows[0]).toContain("<w:trPr><w:cantSplit/><w:tblHeader/></w:trPr>");
+     expect(rows.slice(1).some((row) => row.includes("<w:tblHeader/>"))).toBe(false);
+@@ -208,12 +215,12 @@ describe("Word export", () => {
+     const rid = attr(document, /<a:blip r:embed="([^"]+)"/);
+     expect(part("word/_rels/document.xml.rels")).toContain(`Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"`);
+     expect(part("[Content_Types].xml")).toContain('<Default Extension="png" ContentType="image/png"/>');
+-    // Half the editor's 700px measure is half of the 6.5in content width.
+-    expect(attr(document, /<wp:extent cx="(\d+)"/)).toBe(String(Math.round(9360 / 2) * 635));
++    // Half the editor's 700px measure is half of the content width (ness.: A4, 9752 twips).
++    expect(attr(document, /<wp:extent cx="(\d+)"/)).toBe(String(Math.round(9752 / 2) * 635));
+     expect(document.match(/<a:blip /g)).toHaveLength(1);
+-    // The page's 6px corners: 6/700 of 9360 twips, as a share of the 175px-high picture's height.
++    // ness.: cantos retos, como na página.
+     const geometry = /<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val (\d+)"\/><\/a:avLst><\/a:prstGeom>/.exec(document);
+-    expect(Number(geometry?.[1])).toBe(Math.round(6 / 700 * 9360 * 635 / Number(attr(document, /<wp:extent cx="\d+" cy="(\d+)"/)) * 100000));
++    expect(Number(geometry?.[1])).toBe(0);
+   });
+ 
+   // Word shows "The picture can't be displayed" for every kind of WebP.
+@@ -266,7 +273,7 @@ describe("Word export", () => {
+     // Under the item's text, as on the page.
+     expect(box).toContain('<w:tblInd w:w="420" w:type="dxa"/>');
+     expect(box).toContain('<w:trPr><w:cantSplit/></w:trPr>');
+-    expect(box).toContain('<w:shd w:val="clear" w:color="auto" w:fill="F3F3F4"/>');
++    expect(box).toContain('<w:shd w:val="clear" w:color="auto" w:fill="F8FAFC"/>');
+     expect(attr(paragraph(box, "let x"), /<w:pStyle w:val="([^"]+)"/)).toBe("Code");
+     const styles = part("word/styles.xml");
+     const code = /<w:style [^>]*w:styleId="Code">.*?<\/w:style>/.exec(styles)![0];
+@@ -277,19 +284,20 @@ describe("Word export", () => {
+     const quoted = paragraph(document, "quoted");
+     expect(document.match(/<w:tbl>/g)).toHaveLength(1);
+     const borders = [...quoted.matchAll(/<w:(top|left|bottom|right) w:val="single" w:sz="(\d+)" w:space="\d+" w:color="([0-9A-F]{6})"\/>/g)];
+-    expect(borders.map((m) => [m[1], Number(m[2]) / 8, m[3]])).toEqual([["top", 6, "F3F3F4"], ["left", 1.5, "DADADC"], ["bottom", 6, "F3F3F4"], ["right", 7.5, "F3F3F4"]]);
+-    expect(quoted).toMatch(/<\/w:pBdr><w:shd w:val="clear" w:color="auto" w:fill="F3F3F4"\/>.*<w:spacing [^>]*\/><w:ind w:right="180" /);
++    expect(borders.map((m) => [m[1], Number(m[2]) / 8, m[3]])).toEqual([["top", 6, "F8FAFC"], ["left", 1.5, "00ADE8"], ["bottom", 6, "F8FAFC"], ["right", 7.5, "F8FAFC"]]);
++    expect(quoted).toMatch(/<\/w:pBdr><w:shd w:val="clear" w:color="auto" w:fill="F8FAFC"\/>.*<w:spacing [^>]*\/><w:ind w:right="180" /);
+   });
+ 
+   it("keeps a heading that starts a list item a heading, numbered with the item", async () => {
+     const { document } = await exportDocx(["<ol><li>First</li><li><h2>Section</h2><p>Body</p></li></ol>"]);
+-    const heading = paragraph(document, "Section");
++    // ness.: numerada como a seção 01, como no editor.
++    const heading = paragraph(document, "01\u2002\u2002Section");
+     expect(attr(heading, /<w:pStyle w:val="([^"]+)"/)).toBe("Heading2");
+     expect(heading).toMatch(/<w:numPr><w:ilvl w:val="0"\/><w:numId w:val="1"\/><\/w:numPr>/);
+     expect(attr(paragraph(document, "First"), /<w:pStyle w:val="([^"]+)"/)).toBe("ListParagraph");
+     // Word draws the number in the paragraph mark's formatting: the page's marker is the item's
+     // (body size, plain, muted), not the heading's. The mark's properties close the pPr.
+-    expect(heading).toMatch(/<w:rPr><w:b w:val="0"\/><w:bCs w:val="0"\/><w:color w:val="7B7B84"\/><w:sz w:val="22"\/><w:szCs w:val="22"\/><\/w:rPr><\/w:pPr>/);
++    expect(heading).toMatch(/<w:rPr><w:b w:val="0"\/><w:bCs w:val="0"\/><w:color w:val="475569"\/><w:sz w:val="22"\/><w:szCs w:val="22"\/><\/w:rPr><\/w:pPr>/);
+     expect(paragraph(document, "First")).not.toContain("<w:rPr><w:b w:val=\"0\"/>");
+   });
+ 
+@@ -344,9 +352,9 @@ describe("Word export", () => {
+   it("repeats the text colour on links, which Apple's readers would otherwise paint blue", async () => {
+     const { document } = await exportDocx(['<p><a href="https://a.example">plain</a> <span class="tc-red"><a href="https://b.example">red</a></span></p>', '<blockquote><a href="https://c.example">quoted</a></blockquote>']);
+     const runOf = (text: string) => [...document.matchAll(/<w:r>([\s\S]*?)<\/w:r>/g)].map((m) => m[1]!).find((r) => textOf(r) === text)!;
+-    expect(runOf("plain")).toContain('<w:rStyle w:val="Hyperlink"/><w:color w:val="1B1B1F"/>');
++    expect(runOf("plain")).toContain('<w:rStyle w:val="Hyperlink"/><w:color w:val="0F172A"/>');
+     expect(runOf("red")).toContain('<w:color w:val="D44C47"/>');
+-    expect(runOf("quoted")).toContain('<w:color w:val="46464E"/>');
++    expect(runOf("quoted")).toContain('<w:color w:val="334155"/>');
+   });
+ 
+   it("expands a code block's tabs to the page's two-column stops", async () => {
+@@ -406,7 +414,7 @@ describe("Word export", () => {
+     expect(attr(paragraph(document, "Intro"), /<w:left w:val="single" w:sz="12" w:space="(\d+)"/)).toBe("10");
+     // The item's first line starts at 200 + 420 - 300 = 320 twips, 16pt right of the rule at 0.
+     expect(attr(paragraph(document, "quoted item"), /<w:left w:val="single" w:sz="12" w:space="(\d+)"/)).toBe("16");
+-    expect(paragraph(document, "quoted item")).toContain('<w:color w:val="46464E"/>');
++    expect(paragraph(document, "quoted item")).toContain('<w:color w:val="334155"/>');
+     expect(paragraph(document, "Intro")).toContain("<w:keepNext/>");
+     expect(paragraph(document, "quoted item")).toContain("<w:keepNext/>");
+     expect(paragraph(document, "Outro")).not.toContain("<w:keepNext/>");
+@@ -444,10 +452,25 @@ describe("Word export", () => {
+       `<p><img src="${PNG}" style="width: .px;" width="0"></p>`,
+     ]);
+     expect(attr(paragraph(document, "huge"), /<w:sz w:val="(\d+)"/)).toBe("3276");
+-    expect(attr(paragraph(document, "far"), /w:left="(\d+)"/)).toBe("9360");
+-    expect(attr(paragraph(document, "far"), /w:firstLine="(\d+)"/)).toBe("9360");
++    expect(attr(paragraph(document, "far"), /w:left="(\d+)"/)).toBe("9752");
++    expect(attr(paragraph(document, "far"), /w:firstLine="(\d+)"/)).toBe("9752");
+     expect(part("word/numbering.xml")).toContain('<w:start w:val="32767"/>');
+     expect(document).not.toContain("NaN");
+     expect(Number(attr(document, /<wp:extent cx="(\d+)"/))).toBeGreaterThan(1);
+   });
+ });
++
++describe("ness.: fontes embutidas", () => {
++  it("ofusca só os 32 primeiros bytes, e a ofuscação se desfaz com a mesma chave", async () => {
++    const { ofuscar } = await import("../files/lib/ness-fontes-word.ts");
++    const fonte = Uint8Array.from({ length: 64 }, (_, i) => i);
++    const chave = "{6E1C2A01-5A3B-4C7D-9E10-0A5E5E000001}";
++    const ofuscada = ofuscar(fonte, chave);
++    // O primeiro byte é XOR com o último par do GUID (01); o 16.º com o primeiro (6E).
++    expect(ofuscada[0]).toBe(0 ^ 0x01);
++    expect(ofuscada[15]).toBe(15 ^ 0x6e);
++    expect(ofuscada[16]).toBe(16 ^ 0x01);
++    expect([...ofuscada.slice(32)]).toEqual([...fonte.slice(32)]);
++    expect([...ofuscar(ofuscada, chave)]).toEqual([...fonte]);
++  });
++});
+diff --git a/blueprint.json b/blueprint.json
+index 95baca8..7433d29 100644
+--- a/blueprint.json
++++ b/blueprint.json
+@@ -1,8 +1,8 @@
+ {
+   "$comment": "output.id is generic (\"document\", not \"workspace-docs\") because it is the grouping key on the Outputs page: an org's own \"Contract\" blueprint declaring \"document\" files alongside this one.",
+   "blueprintId": "format.document",
+-  "title": "Workspace Docs",
+-  "description": "Use to write, format, and edit rich text documents interactively or with natural language.",
++  "title": "Documento ness.",
++  "description": "Documentos no NESS Design System (A4, seções numeradas, destaque, tabela leve), editados na tela ou por linguagem natural. Exporta para Word, PDF, HTML e Markdown.",
+   "output": {
+     "id": "document",
+     "noun": "Doc",
+diff --git a/files/README.md b/files/README.md
+index 7fa07c5..d849806 100644
+--- a/files/README.md
++++ b/files/README.md
+@@ -81,8 +81,8 @@ Every write runs in the Durable Object's mutation queue. One that changes the do
+ ## Export formats
+ 
+ - **Markdown** (server): the stored blocks, including `- [ ]` checklists and GFM tables (column alignment kept). Underline, colour, size and alignment become plain text. Full image data URIs are kept.
+-- **HTML** and **PDF** (browser): the print layout, light palette, no chrome; trailing empty lines are hidden; table rows don't split across pages.
+-- **Word** (`.docx`, server): converted from the block HTML to native Word: Heading 1–3 styles (usable for Word's navigation and table of contents), Quote style, native numbered/bulleted lists, clickable to-do checkboxes, code in a shaded monospace box, native tables (header row repeats across pages), palette colours, embedded images at their page width, `http(s)`/`mailto:`/`tel:` links. The document font follows the shared typeface (Arial / Georgia / Courier New) on US Letter. Remote, SVG, AVIF or WebP images (which Word can't display) export as their alt text. Limits: 64 MB of HTML, 20,000 blocks, 400,000 nodes, nesting 200 deep and 400,000 table cells, past which the export fails with a message; images past 500 (16 MB each, 96 MB total) export as their alt text.
++- **HTML** and **PDF** (browser): the print layout on A4, light palette, no chrome; the first heading becomes the near-black NESS cover with the logo; trailing empty lines are hidden; table rows don't split across pages.
++- **Word** (`.docx`, server): converted from the block HTML to native Word: Heading 1–3 styles (usable for Word's navigation and table of contents), Quote style, native numbered/bulleted lists, clickable to-do checkboxes, code in a shaded monospace box, native tables (header row repeats across pages), palette colours, embedded images at their page width, `http(s)`/`mailto:`/`tel:` links. The document follows the NESS Design System on A4: Inter body (or Georgia / JetBrains Mono per the shared typeface), Montserrat headings (the three faces embedded in the file as obfuscated TrueType), numbered sections (01, 02…) and ▸ subheadings in BlueDot, quotes as a shaded callout, tables with an ink header row. Remote, SVG, AVIF or WebP images (which Word can't display) export as their alt text. Limits: 64 MB of HTML, 20,000 blocks, 400,000 nodes, nesting 200 deep and 400,000 table cells, past which the export fails with a message; images past 500 (16 MB each, 96 MB total) export as their alt text.
+ 
+ ## Limitations
+ 
+diff --git a/files/client.ts b/files/client.ts
+index f6eef04..9d74b68 100644
+--- a/files/client.ts
++++ b/files/client.ts
+@@ -32,6 +32,7 @@ import type {
+ import { escapeHtml, inlineMarkdown, isCodeEditorHtml, normalizeHref, parseTsv, pipeCells, sanitizePastedHtml as sanitizeHtml, textToHtml, type PasteContext } from "./lib/paste.ts";
+ import { MARK_TAGS, VOID_TAGS, mergeBlockHtml } from "./lib/merge.ts";
+ import { codeFence } from "./lib/markdown.ts";
++import { NESS_CAPA_CSS, NESS_CSS } from "./lib/ness-tema.ts";
+ import {
+   type ElChild,
+   DEFAULT_IMAGE_LIMITS,
+@@ -6538,6 +6539,8 @@ if (isExport) {
+     n.style.display = "none";
+   }
+ }
++// ness.: o visual do NESS Design System, depois dos estilos de fábrica (lib/ness-tema.ts).
++document.head.appendChild(el("style", { text: NESS_CSS + NESS_CAPA_CSS }));
+ // Exports are captured when this script finishes: let web fonts land first so
+ // the PDF's text matches the screen (but never wait more than 1.5 s).
+ if (isExport && document.fonts) await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1500))]);
+diff --git a/files/lib/docx.ts b/files/lib/docx.ts
+index 5976ad7..be783d6 100644
+--- a/files/lib/docx.ts
++++ b/files/lib/docx.ts
+@@ -23,6 +23,7 @@
+ import { type ZipEntry, createZip } from "@gadgets/bundled-blueprints/libraries/zip/server";
+ import { VOID_TAGS } from "./merge.ts";
+ import type { DocFont, DocSettings } from "./protocol.ts";
++import { fontesEmbutidas } from "./ness-fontes-word.ts";
+ 
+ /* ═══════════════════════ 1. Limits, units & XML ════════════════════════════ */
+ 
+@@ -57,8 +58,8 @@ export interface DocxSource {
+ /** The document's shared presentation settings; any left out take their defaults. */
+ export type DocxSettings = Partial<DocSettings>;
+ 
+-// US Letter, 1in margins: the content box is 6.5in wide.
+-const PAGE = { w: 12240, h: 15840, margin: 1440 };
++// ness.: A4, margens de 19 mm (o template Documento do NESS Design System).
++const PAGE = { w: 11906, h: 16838, margin: 1077 };
+ const CONTENT_TWIPS = PAGE.w - 2 * PAGE.margin;
+ const CONTENT_HEIGHT_TWIPS = PAGE.h - 2 * PAGE.margin;
+ const EMU_PER_TWIP = 635;
+@@ -76,12 +77,14 @@ interface Typeface {
+ // The three shared typefaces (settings.font), mirroring the editor's
+ // --doc-font / --doc-size / --doc-lh: the editor's 16px sans body maps to 11pt.
+ const TYPEFACES: Record<DocFont, Typeface> = {
+-  sans: { font: "Arial", size: 11, line: 1.65 },
++  sans: { font: "Inter", size: 11, line: 1.65 },
+   serif: { font: "Georgia", size: 12, line: 1.6 },
+   mono: { font: "Courier New", size: 10, line: 1.7 },
+ };
+ // Courier New: the monospace face Word, Google Docs, LibreOffice and Apple's readers all have.
+-const MONO_FONT = "Courier New";
++const MONO_FONT = "JetBrains Mono";
++// ness.: Montserrat nos títulos.
++const HEAD_FONT = "Montserrat";
+ 
+ // A CSS line-height as a Word "multiple" line rule (240ths of single
+ // spacing). Word's single spacing is the font's own line height, about 1.15em
+@@ -89,16 +92,19 @@ const MONO_FONT = "Courier New";
+ const cssLine = (lineHeight: number): number => Math.round(lineHeight / 1.15 * 240);
+ 
+ // Editor colours (light palette; exports always use it).
+-const INK = "1B1B1F";
+-const INK_2 = "46464E";
+-const MUTED = "7B7B84";
+-const FAINT = "ABABB3";
+-const ACCENT = "E1632E";
+-const LINE = "EBEBEC"; //        rgba(24,24,32,.08) on white
+-const LINE_STRONG = "DADADC"; // rgba(24,24,32,.15) on white
+-const CODE_BG = "F3F3F4"; //     rgba(24,24,32,.05) on white
+-const INLINE_CODE_BG = "F0F0F1";
+-const TABLE_HEAD = "F7F7F8"; //  rgba(24,24,32,.034) on white
++// ness.: o tema claro do NESS Design System.
++const INK = "0F172A";
++const INK_2 = "334155";
++const MUTED = "475569";
++const FAINT = "94A3B8";
++const ACCENT = "00ADE8";
++const ACCENT_TEXT = "006A8F";
++const CALLOUT_BG = "E6F7FD"; //  BlueDot a 10% sobre o papel
++const LINE = "E2E8F0";
++const LINE_STRONG = "CBD5E1";
++const CODE_BG = "F8FAFC";
++const INLINE_CODE_BG = "F1F5F9";
++const TABLE_HEAD = INK; //      cabeçalho em tinta, texto no papel
+ const MARK_BG = "FBEFC4";
+ 
+ // The editor's palette (client.ts PALETTE): [text, highlight] in the light theme.
+@@ -788,7 +794,8 @@ class DocxWriter {
+     const cy = Math.max(1, Math.round(heightTwips * EMU_PER_TWIP));
+     // The page's 6px corner radius, as roundRect's adjustment: a share of the
+     // shorter side, where 50000 is a half.
+-    const radius = 6 / this.measurePx * CONTENT_TWIPS * EMU_PER_TWIP;
++    // ness.: cantos retos (NESS Design System, raio zero).
++    const radius = 0 / this.measurePx * CONTENT_TWIPS * EMU_PER_TWIP;
+     const corner = Math.min(50000, Math.round(radius / Math.min(cx, cy) * 100000));
+     const id = this.#nextDrawing++;
+     const alt = xmlAttr((node.attrs.alt ?? "").slice(0, 1000));
+@@ -911,7 +918,7 @@ class DocxWriter {
+       // inside (a list item's hangs further out).
+       const textX = Math.max(0, leftTwips) - (state.hanging ?? 0);
+       const space = clampNumber(Math.round((textX - (state.quoteRule ?? 0)) / 20), 0, 31);
+-      pPr.push(`<w:pBdr><w:left w:val="single" w:sz="12" w:space="${space}" w:color="${LINE_STRONG}"/></w:pBdr>`);
++      pPr.push(`<w:pBdr><w:left w:val="single" w:sz="12" w:space="${space}" w:color="${ACCENT}"/></w:pBdr><w:shd w:val="clear" w:color="auto" w:fill="${CALLOUT_BG}"/>`);
+     }
+     // A hanging marker (a number, bullet or to-do checkbox) is followed by a tab to the text's indent.
+     if (state.hanging) pPr.push(`<w:tabs><w:tab w:val="left" w:pos="${leftTwips}"/></w:tabs>`);
+@@ -930,13 +937,27 @@ class DocxWriter {
+     };
+   }
+ 
++  /** ness.: o número da próxima seção (h2). */
++  #secao = 0;
++
++  /**
++   * ness.: o marcador de um título, como o editor o desenha (CSS): "01", "02"… nas seções (h2) e ▸
++   * nos subtítulos (h3, h4), em BlueDot. Avança a numeração; vazio para os demais.
++   */
++  #marca(tag: string): string {
++    const marca = tag === "h2" ? String(++this.#secao).padStart(2, "0") + "\u2002\u2002" : tag === "h3" || tag === "h4" ? "\u25B8\u2002" : "";
++    return marca ? `<w:r><w:rPr><w:color w:val="${ACCENT}"/></w:rPr><w:t xml:space="preserve">${marca}</w:t></w:r>` : "";
++  }
++
+   #block(node: ElementNode, state: BlockState): void {
+     const tag = node.tag;
+     const css = parseStyle(node.attrs.style);
+     const heading = HEADING_STYLE[tag];
+     if (heading) {
+       const title = tag === "h1" && /(^|\s)doc-title(\s|$)/.test(node.attrs.class ?? "");
+-      this.#paragraph(node.children, this.#paragraphOptions(state, node, { style: title ? "Title" : heading }));
++      const options = this.#paragraphOptions(state, node, { style: title ? "Title" : heading });
++      options.prefix = (options.prefix ?? "") + this.#marca(tag);
++      this.#paragraph(node.children, options);
+       return;
+     }
+     switch (tag) {
+@@ -1107,8 +1128,13 @@ class DocxWriter {
+         const options = this.#paragraphOptions(itemState, leading, { style: leadingHeading });
+         const body = halfPoints(this.basePt * (state.style === "TableText" ? 0.9375 : 1));
+         options.pPr += `<w:rPr><w:b w:val="0"/><w:bCs w:val="0"/><w:color w:val="${MUTED}"/><w:sz w:val="${body}"/><w:szCs w:val="${body}"/></w:rPr>`;
++        options.prefix = (options.prefix ?? "") + this.#marca(leading.tag);
++        this.#paragraph(leading.children, options);
++      } else if (leading) {
++        const options = this.#paragraphOptions(itemState, leading, leadingHeading ? { style: leadingHeading } : {});
++        options.prefix = (options.prefix ?? "") + this.#marca(leading.tag);
+         this.#paragraph(leading.children, options);
+-      } else if (leading) this.#paragraph(leading.children, this.#paragraphOptions(itemState, leading, leadingHeading ? { style: leadingHeading } : {}));
++      }
+       else this.#paragraph(inline, this.#paragraphOptions(itemState, null));
+       for (const child of nested) {
+         if (LIST_TAGS.test(child.tag)) {
+@@ -1414,7 +1440,7 @@ function stylesXml(face: Typeface): string {
+   const fonts = (name: string): string => `<w:rFonts w:ascii="${name}" w:eastAsia="${name}" w:hAnsi="${name}" w:cs="${name}"/>`;
+   const size = (halves: number): string => `<w:sz w:val="${halves}"/><w:szCs w:val="${halves}"/>`;
+   const heading = (id: string, name: string, level: number, em: number, before: number, after: number, line: number): string =>
+-    `<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${name}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="9"/><w:qFormat/><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="${twips(before, base * em)}" w:after="${twips(after, base * em)}" w:line="${cssLine(line)}" w:lineRule="auto"/><w:outlineLvl w:val="${level}"/></w:pPr><w:rPr><w:b/><w:bCs/><w:color w:val="${INK}"/><w:spacing w:val="${Math.round(-0.02 * base * em * 20)}"/>${size(pt(em))}</w:rPr></w:style>`;
++    `<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${name}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="9"/><w:qFormat/><w:pPr><w:keepNext/><w:keepLines/><w:spacing w:before="${twips(before, base * em)}" w:after="${twips(after, base * em)}" w:line="${cssLine(line)}" w:lineRule="auto"/><w:outlineLvl w:val="${level}"/>${level === 1 ? `<w:pBdr><w:bottom w:val="single" w:sz="4" w:space="6" w:color="${LINE}"/></w:pBdr>` : ""}</w:pPr><w:rPr>${level === 2 ? fonts(font) : fonts(HEAD_FONT)}<w:b/><w:bCs/><w:color w:val="${level === 2 ? ACCENT_TEXT : INK}"/><w:spacing w:val="${Math.round(-0.02 * base * em * 20)}"/>${size(pt(em))}</w:rPr></w:style>`;
+   const tableBorder = (side: string, sz: number, color: string): string => `<w:${side} w:val="single" w:sz="${sz}" w:space="0" w:color="${color}"/>`;
+   const cellPadY = twips(0.42, base * 0.9375);
+   return XML_HEAD + `<w:styles ${W_NS}>` +
+@@ -1425,10 +1451,10 @@ function stylesXml(face: Typeface): string {
+     `<w:style w:type="character" w:default="1" w:styleId="DefaultParagraphFont"><w:name w:val="Default Paragraph Font"/><w:uiPriority w:val="1"/><w:semiHidden/><w:unhideWhenUsed/></w:style>` +
+     `<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:uiPriority w:val="99"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>` +
+     `<w:style w:type="numbering" w:default="1" w:styleId="NoList"><w:name w:val="No List"/><w:uiPriority w:val="99"/><w:semiHidden/><w:unhideWhenUsed/></w:style>` +
+-    `<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="10"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="0" w:after="${twips(0.3, base * 2.3)}" w:line="270" w:lineRule="auto"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr><w:b/><w:bCs/><w:color w:val="${INK}"/><w:spacing w:val="${Math.round(-0.028 * base * 2.3 * 20)}"/><w:kern w:val="28"/>${size(pt(2.3))}</w:rPr></w:style>` +
++    `<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="10"/><w:qFormat/><w:pPr><w:keepNext/><w:spacing w:before="0" w:after="${twips(0.3, base * 2.3)}" w:line="270" w:lineRule="auto"/><w:outlineLvl w:val="0"/></w:pPr><w:rPr>${fonts(HEAD_FONT)}<w:b/><w:bCs/><w:color w:val="${INK}"/><w:spacing w:val="${Math.round(-0.028 * base * 2.3 * 20)}"/><w:kern w:val="28"/>${size(pt(2.3))}</w:rPr></w:style>` +
+     heading("Heading1", "heading 1", 0, 1.875, 1.5, 0.42, 1.22) +
+-    heading("Heading2", "heading 2", 1, 1.4, 1.45, 0.38, 1.3) +
+-    heading("Heading3", "heading 3", 2, 1.15, 1.3, 0.3, 1.4) +
++    heading("Heading2", "heading 2", 1, 1.375, 1.45, 0.6, 1.2) +
++    heading("Heading3", "heading 3", 2, 1, 1.3, 0.3, 1.4) +
+     `<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="29"/><w:qFormat/><w:pPr><w:keepLines/><w:spacing w:after="${twips(0.4)}"/><w:ind w:left="${twips(1)}"/></w:pPr><w:rPr><w:color w:val="${INK_2}"/></w:rPr></w:style>` +
+     `<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="34"/><w:qFormat/><w:pPr><w:spacing w:before="${twips(0.22)}" w:after="${twips(0.22)}"/><w:contextualSpacing/></w:pPr></w:style>` +
+     `<w:style w:type="paragraph" w:styleId="TableList"><w:name w:val="Table List"/><w:basedOn w:val="TableText"/><w:uiPriority w:val="41"/><w:pPr><w:spacing w:before="${twips(0.22, base * 0.9375)}" w:after="${twips(0.22, base * 0.9375)}"/><w:contextualSpacing/></w:pPr></w:style>` +
+@@ -1441,8 +1467,8 @@ function stylesXml(face: Typeface): string {
+     // Links look as on the page: the text colour, underlined in the accent.
+     `<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:basedOn w:val="DefaultParagraphFont"/><w:uiPriority w:val="99"/><w:unhideWhenUsed/><w:rPr><w:u w:val="single" w:color="${ACCENT}"/></w:rPr></w:style>` +
+     `<w:style w:type="character" w:styleId="InlineCode"><w:name w:val="Inline Code"/><w:basedOn w:val="DefaultParagraphFont"/><w:uiPriority w:val="39"/><w:qFormat/><w:rPr>${fonts(MONO_FONT)}<w:noProof/>${size(halfPoints(base * (mono ? 0.95 : 0.86)))}<w:shd w:val="clear" w:color="auto" w:fill="${INLINE_CODE_BG}"/></w:rPr></w:style>` +
+-    `<w:style w:type="table" w:styleId="DocTable"><w:name w:val="Document Table"/><w:basedOn w:val="TableNormal"/><w:uiPriority w:val="59"/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:tblPr><w:tblBorders>${tableBorder("top", 6, LINE_STRONG)}${tableBorder("left", 6, LINE_STRONG)}${tableBorder("bottom", 6, LINE_STRONG)}${tableBorder("right", 6, LINE_STRONG)}${tableBorder("insideH", 4, LINE)}${tableBorder("insideV", 4, LINE)}</w:tblBorders><w:tblCellMar><w:top w:w="${cellPadY}" w:type="dxa"/><w:left w:w="${cellPadX(base)}" w:type="dxa"/><w:bottom w:w="${cellPadY}" w:type="dxa"/><w:right w:w="${cellPadX(base)}" w:type="dxa"/></w:tblCellMar></w:tblPr>` +
+-      `<w:tblStylePr w:type="firstRow"><w:rPr><w:b/><w:bCs/></w:rPr><w:tcPr><w:shd w:val="clear" w:color="auto" w:fill="${TABLE_HEAD}"/></w:tcPr></w:tblStylePr></w:style>` +
++    `<w:style w:type="table" w:styleId="DocTable"><w:name w:val="Document Table"/><w:basedOn w:val="TableNormal"/><w:uiPriority w:val="59"/><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:tblPr><w:tblBorders>${tableBorder("insideH", 4, LINE)}</w:tblBorders><w:tblCellMar><w:top w:w="${cellPadY}" w:type="dxa"/><w:left w:w="${cellPadX(base)}" w:type="dxa"/><w:bottom w:w="${cellPadY}" w:type="dxa"/><w:right w:w="${cellPadX(base)}" w:type="dxa"/></w:tblCellMar></w:tblPr>` +
++      `<w:tblStylePr w:type="firstRow"><w:rPr><w:b/><w:bCs/><w:color w:val="FFFFFF"/></w:rPr><w:tcPr><w:shd w:val="clear" w:color="auto" w:fill="${TABLE_HEAD}"/></w:tcPr></w:tblStylePr></w:style>` +
+     `</w:styles>`;
+ }
+ 
+@@ -1467,7 +1493,7 @@ function numberingXml(lists: ListInstance[]): string {
+     if (list.kind === "bullet" || list.kind === "check") {
+       const below = ilvl - list.level;
+       const bullet = below === 0 ? list.bullet ?? 0 : below > 0 ? Math.min(2, (list.ulDepth ?? 0) + below) : ilvl % 3;
+-      return `<w:lvl w:ilvl="${ilvl}"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="${BULLETS[bullet]}"/><w:lvlJc w:val="left"/>${ind}<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:hint="default"/><w:color w:val="${MUTED}"/></w:rPr></w:lvl>`;
++      return `<w:lvl w:ilvl="${ilvl}"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="${BULLETS[bullet]}"/><w:lvlJc w:val="left"/>${ind}<w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial" w:hint="default"/><w:color w:val="${ACCENT}"/></w:rPr></w:lvl>`;
+     }
+     const start = ilvl === list.level ? list.start : 1;
+     const below = ilvl - list.level;
+@@ -1484,18 +1510,22 @@ function numberingXml(lists: ListInstance[]): string {
+   return XML_HEAD + `<w:numbering ${W_NS}>${abstracts}${nums}</w:numbering>`;
+ }
+ 
+-const SETTINGS_XML = XML_HEAD + `<w:settings ${W_NS} xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="w14"><w:zoom w:percent="100"/><w:defaultTabStop w:val="720"/><w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/><w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/><w:compatSetting w:name="enableOpenTypeFeatures" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/><w:compatSetting w:name="doNotFlipMirrorIndents" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/></w:compat></w:settings>`;
++const SETTINGS_XML = XML_HEAD + `<w:settings ${W_NS} xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="w14"><w:zoom w:percent="100"/><w:embedTrueTypeFonts/><w:defaultTabStop w:val="720"/><w:characterSpacingControl w:val="doNotCompress"/><w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/><w:compatSetting w:name="overrideTableStyleFontSizeAndJustification" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/><w:compatSetting w:name="enableOpenTypeFeatures" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/><w:compatSetting w:name="doNotFlipMirrorIndents" w:uri="http://schemas.microsoft.com/office/word" w:val="1"/></w:compat></w:settings>`;
+ 
+ // Font metadata lets a reader without the face pick a close substitute.
+ const FONT_METADATA: Record<string, string> = {
+   Arial: `<w:panose1 w:val="020B0604020202020204"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/>`,
+   Georgia: `<w:panose1 w:val="02040502050405020303"/><w:charset w:val="00"/><w:family w:val="roman"/><w:pitch w:val="variable"/>`,
+   "Courier New": `<w:panose1 w:val="02070309020205020404"/><w:charset w:val="00"/><w:family w:val="modern"/><w:pitch w:val="fixed"/>`,
++  Inter: `<w:altName w:val="Arial"/><w:panose1 w:val="020B0502030000000004"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/>`,
++  Montserrat: `<w:altName w:val="Arial"/><w:panose1 w:val="00000500000000000000"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/>`,
++  "JetBrains Mono": `<w:altName w:val="Courier New"/><w:panose1 w:val="02000009000000000000"/><w:charset w:val="00"/><w:family w:val="modern"/><w:pitch w:val="fixed"/>`,
+   "MS Gothic": `<w:altName w:val="MS Gothic"/><w:panose1 w:val="020B0609070205080204"/><w:charset w:val="80"/><w:family w:val="modern"/><w:pitch w:val="fixed"/>`,
+ };
+ 
+-function fontTableXml(fonts: Set<string>): string {
+-  return XML_HEAD + `<w:fonts ${W_NS}>${[...fonts].map((f) => `<w:font w:name="${xmlAttr(f)}">${FONT_METADATA[f] ?? ""}</w:font>`).join("")}</w:fonts>`;
++// ness.: `embeds` são os elementos das fontes embutidas (lib/ness-fontes-word.ts), por família.
++function fontTableXml(fonts: Set<string>, embeds: Map<string, string> = new Map()): string {
++  return XML_HEAD + `<w:fonts ${W_NS}>${[...fonts].map((f) => `<w:font w:name="${xmlAttr(f)}">${FONT_METADATA[f] ?? ""}${embeds.get(f) ?? ""}</w:font>`).join("")}</w:fonts>`;
+ }
+ 
+ function coreXml(title: string, modified: number): string {
+@@ -1505,11 +1535,12 @@ function coreXml(title: string, modified: number): string {
+ 
+ const APP_XML = XML_HEAD + `<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Docs</Application><DocSecurity>0</DocSecurity></Properties>`;
+ 
+-function contentTypesXml(media: Media[]): string {
++function contentTypesXml(media: Media[], fonts = false): string {
+   const types = new Set(media.map((m) => m.type));
+   const word = "application/vnd.openxmlformats-officedocument.wordprocessingml";
+   return XML_HEAD + `<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>` +
+     [...types].map((t) => `<Default Extension="${t}" ContentType="image/${t}"/>`).join("") +
++    (fonts ? `<Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/>` : "") +
+     `<Override PartName="/word/document.xml" ContentType="${word}.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="${word}.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="${word}.numbering+xml"/><Override PartName="/word/settings.xml" ContentType="${word}.settings+xml"/><Override PartName="/word/fontTable.xml" ContentType="${word}.fontTable+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`;
+ }
+ 
+@@ -1559,11 +1590,12 @@ export function documentToDocx(source: DocxSource, settings: DocxSettings = {}):
+   if (writer.out[0]!.startsWith("<w:p>")) writer.out[0] = paragraphWithSpacing(writer.out[0]!, { before: 0 });
+   const body = writer.out.join("");
+   const sectPr = `<w:sectPr><w:pgSz w:w="${PAGE.w}" w:h="${PAGE.h}"/><w:pgMar w:top="${PAGE.margin}" w:right="${PAGE.margin}" w:bottom="${PAGE.margin}" w:left="${PAGE.margin}" w:header="720" w:footer="720" w:gutter="0"/><w:cols w:space="720"/></w:sectPr>`;
+-  const fonts = new Set([writer.face.font, MONO_FONT, "Arial"]);
++  const fonts = new Set([writer.face.font, HEAD_FONT, MONO_FONT, "Arial"]);
+   if (writer.checkboxes) fonts.add("MS Gothic");
+   for (const m of body.matchAll(/w:ascii="([^"]+)"/g)) fonts.add(decodeEntities(m[1]!));
++  const embutidas = fontesEmbutidas(fonts);
+   const entries: ZipEntry[] = [
+-    { name: "[Content_Types].xml", data: contentTypesXml(writer.media) },
++    { name: "[Content_Types].xml", data: contentTypesXml(writer.media, embutidas.partes.length > 0) },
+     { name: "_rels/.rels", data: ROOT_RELS },
+     { name: "docProps/core.xml", data: coreXml(documentTitle(fragments), Number(source.lastModified)) },
+     { name: "docProps/app.xml", data: APP_XML },
+@@ -1571,7 +1603,9 @@ export function documentToDocx(source: DocxSource, settings: DocxSettings = {}):
+     { name: "word/styles.xml", data: stylesXml(writer.face) },
+     { name: "word/numbering.xml", data: numberingXml(writer.lists) },
+     { name: "word/settings.xml", data: SETTINGS_XML },
+-    { name: "word/fontTable.xml", data: fontTableXml(fonts) },
++    { name: "word/fontTable.xml", data: fontTableXml(fonts, embutidas.elementos) },
++    ...(embutidas.rels ? [{ name: "word/_rels/fontTable.xml.rels", data: embutidas.rels }] : []),
++    ...embutidas.partes.map((f) => ({ name: f.name, data: new Blob([f.bytes]).stream() })),
+     { name: "word/_rels/document.xml.rels", data: documentRelsXml(writer.relationships) },
+     ...writer.media.map((m) => ({ name: "word/media/" + m.name, data: new Blob([m.bytes]).stream() })),
+   ];
+diff --git a/files/lib/ness-fontes-word.ts b/files/lib/ness-fontes-word.ts
+new file mode 100644
+index 0000000..08294ff
+--- /dev/null
++++ b/files/lib/ness-fontes-word.ts
+@@ -0,0 +1,68 @@
++// ness.: as fontes do NESS Design System embutidas no .docx (ECMA-376 Parte 1, 17.8.1), para que o
++// documento abra com Inter, Montserrat e JetBrains Mono numa máquina que não as tem. Cada fonte vai
++// ofuscada (.odttf): os 32 primeiros bytes passam por XOR com a chave da fonte, um GUID fixo por
++// família e estilo. Licença das fontes: SIL OFL 1.1, que permite embutir.
++
++import { FONTES_TTF } from "./ness-ativos.ts";
++
++/** Uma parte do pacote: caminho e bytes. */
++export interface ParteFonte {
++  name: string;
++  bytes: Uint8Array;
++}
++
++/** O que o .docx ganha: os elementos de cada fonte no fontTable, as partes e as relações delas. */
++export interface FontesEmbutidas {
++  /** Por família: `<w:embedRegular …/><w:embedBold …/>`, na ordem do esquema. */
++  elementos: Map<string, string>;
++  partes: ParteFonte[];
++  /** `word/_rels/fontTable.xml.rels`, ou vazio quando nada foi embutido. */
++  rels: string;
++}
++
++// Chaves fixas, por família e estilo: o mesmo documento sempre gera o mesmo pacote.
++const CHAVES: Record<string, Record<string, string>> = {
++  Inter: { regular: "{6E1C2A01-5A3B-4C7D-9E10-0A5E5E000001}", bold: "{6E1C2A01-5A3B-4C7D-9E10-0A5E5E000002}" },
++  Montserrat: { regular: "{6E1C2A01-5A3B-4C7D-9E10-0A5E5E000003}", bold: "{6E1C2A01-5A3B-4C7D-9E10-0A5E5E000004}" },
++  "JetBrains Mono": { regular: "{6E1C2A01-5A3B-4C7D-9E10-0A5E5E000005}", bold: "" },
++};
++
++function base64(texto: string): Uint8Array {
++  return Uint8Array.from(atob(texto), (c) => c.charCodeAt(0));
++}
++
++/** Os bytes da fonte, ofuscados com a chave: XOR dos 32 primeiros com os 16 bytes do GUID lidos do fim. */
++export function ofuscar(fonte: Uint8Array, chave: string): Uint8Array {
++  const hex = chave.replace(/[{}-]/g, "");
++  const k = Array.from({ length: 16 }, (_, i) => parseInt(hex.slice(30 - 2 * i, 32 - 2 * i), 16));
++  const saida = fonte.slice();
++  for (let i = 0; i < 32 && i < saida.length; i++) saida[i]! ^= k[i % 16]!;
++  return saida;
++}
++
++/** As fontes do design system entre `usadas`, prontas para o pacote. */
++export function fontesEmbutidas(usadas: Set<string>): FontesEmbutidas {
++  const elementos = new Map<string, string>();
++  const partes: ParteFonte[] = [];
++  const rels: string[] = [];
++  for (const familia of Object.keys(FONTES_TTF).filter((f) => usadas.has(f))) {
++    let xml = "";
++    for (const estilo of ["regular", "bold"] as const) {
++      const ttf = FONTES_TTF[familia]![estilo];
++      const chave = CHAVES[familia]?.[estilo];
++      if (!ttf || !chave) continue;
++      const n = partes.length + 1;
++      partes.push({ name: `word/fonts/font${n}.odttf`, bytes: ofuscar(base64(ttf), chave) });
++      rels.push(`<Relationship Id="rIdF${n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/font${n}.odttf"/>`);
++      xml += `<w:embed${estilo === "regular" ? "Regular" : "Bold"} r:id="rIdF${n}" w:fontKey="${chave}"/>`;
++    }
++    if (xml) elementos.set(familia, xml);
++  }
++  return {
++    elementos,
++    partes,
++    rels: partes.length
++      ? `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join("")}</Relationships>`
++      : "",
++  };
++}
+diff --git a/files/lib/ness-tema.ts b/files/lib/ness-tema.ts
+new file mode 100644
+index 0000000..3587123
+--- /dev/null
++++ b/files/lib/ness-tema.ts
+@@ -0,0 +1,107 @@
++// ness.: o Documento com o visual do NESS Design System (template "Documento n.product"):
++// Montserrat nos títulos, Inter no corpo, JetBrains Mono no código; BlueDot como único destaque;
++// seções numeradas (01, 02…) com régua fina; subtítulos com ▸; citação como destaque (callout);
++// tabela leve com cabeçalho em tinta; cantos retos. Na exportação (HTML/PDF), A4 e o primeiro
++// título vira a capa near-black com o logotipo. Carregado depois dos estilos de fábrica, vence
++// por ordem com a mesma especificidade.
++
++import { FONTES_CSS, LOGO_NEGATIVO_SVG } from "./ness-ativos.ts";
++
++const LOGO_URL = `url("data:image/svg+xml;base64,${btoa(LOGO_NEGATIVO_SVG)}")`;
++
++export const NESS_CSS = `${FONTES_CSS}
++:root {
++  --accent: #00ADE8;
++  --accent-soft: rgba(0,173,232,0.12);
++  --selection: rgba(0,173,232,0.22);
++  --accent-text: #006A8F;
++  --text: #0F172A;
++  --text-2: #334155;
++  --muted: #475569;
++  --faint: #94A3B8;
++  --line: #E2E8F0;
++  --line-strong: #CBD5E1;
++  --code-bg: #F8FAFC;
++  --ok: #065F46;
++  --bad: #B91C1C;
++  --font-head: "Montserrat", "Inter", system-ui, sans-serif;
++  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
++  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
++  --table-head: #0F172A;
++  --table-head-text: #FFFFFF;
++}
++@media screen and (prefers-color-scheme: dark) {
++  :root:not(.document-export) {
++    --bg: #0E1116;
++    --chrome: rgba(14,17,22,0.8);
++    --raised: #16191F;
++    --accent: #00ADE8;
++    --accent-soft: rgba(0,173,232,0.16);
++    --selection: rgba(0,173,232,0.3);
++    --accent-text: #7FD6F6;
++    --text: #F1F5F9;
++    --text-2: #CBD5E1;
++    --muted: #94A3B8;
++    --faint: #8FA0B6;
++    --line: rgba(255,255,255,0.14);
++    --line-strong: rgba(255,255,255,0.22);
++    --code-bg: #16191F;
++    --ok: #10B981;
++    --bad: #F87171;
++    --table-head: #1E232B;
++    --table-head-text: #F1F5F9;
++  }
++}
++
++.editor { counter-reset: ness-secao; }
++.editor h1, .editor h2, .editor h3, .editor h4 { font-family: var(--font-head); }
++.editor h1 { font-weight: 600; letter-spacing: -0.025em; }
++.editor h2 { font-weight: 600; font-size: 1.375em; letter-spacing: -0.01em; padding-bottom: .55em; border-bottom: 1px solid var(--line); margin-bottom: .9em; counter-increment: ness-secao; }
++.editor h2::before { content: counter(ness-secao, decimal-leading-zero); color: var(--accent); margin-right: .6em; font-variant-numeric: tabular-nums; }
++.editor h3, .editor h4 { font-family: var(--font-sans); font-size: 1em; font-weight: 600; letter-spacing: 0; color: var(--accent-text); }
++.editor h3::before, .editor h4::before { content: "▸"; color: var(--accent); margin-right: .5em; font-weight: 400; }
++.editor b, .editor strong { font-weight: 600; color: var(--text); }
++.editor blockquote {
++  --ph-x: 16px; padding: 14px 16px; color: var(--text-2);
++  background: color-mix(in oklab, var(--accent) 10%, var(--bg));
++  border-left: 2px solid var(--accent);
++  break-inside: avoid;
++}
++.editor li::marker { color: var(--accent); }
++.editor code { border-radius: 0; }
++.editor pre { border-radius: 0; border: 1px solid var(--line); }
++.editor img.doc-image { border-radius: 0; }
++.editor hr { background: var(--line); }
++
++.editor table { border: 0; border-radius: 0; border-collapse: collapse; font-size: .8125em; }
++.editor th, .editor td { padding: .75em .9em; border: 0; border-bottom: 1px solid var(--line); }
++.editor tbody > tr:last-child > * { border-bottom: 0; }
++.editor thead th { background: var(--table-head); color: var(--table-head-text); font-weight: 600; }
++.editor thead > tr:first-child > :first-child, .editor thead > tr:first-child > :last-child { border-radius: 0; }
++
++/* Exportação e impressão em A4; a capa vem em NESS_CAPA_CSS. */
++@page { size: A4; margin: 20mm 18mm; }
++@media screen { html.document-export body { padding: 20mm 18mm; } html.document-export .page { max-width: 174mm; } }
++`;
++
++// A capa, separada para valer igual na exportação e na impressão.
++const CAPA = `
++  background: #0E1116 ${LOGO_URL} no-repeat 40px 40px / auto 20px;
++  color: #F1F5F9; font-size: 2.25em; line-height: 1.12; letter-spacing: -0.025em;
++  padding: 96px 40px 48px; margin: 0 0 1.6em;
++  -webkit-print-color-adjust: exact; print-color-adjust: exact;
++  break-after: avoid-page;
++`;
++const BARRA = `content: ""; display: block; width: 48px; height: 3px; background: #00ADE8; margin: -26px 0 23px;`;
++
++export const NESS_CAPA_CSS = `
++html.document-export .editor > h1:first-child { ${CAPA} }
++html.document-export .editor > h1:first-child::before { ${BARRA} }
++html.document-export .editor h2, html.document-export .editor h3 { break-after: avoid-page; }
++html.document-export, html.document-export body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
++@media print {
++  .editor > h1:first-child { ${CAPA} }
++  .editor > h1:first-child::before { ${BARRA} }
++  html, body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
++}
++`;

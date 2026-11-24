@@ -877,9 +877,15 @@ export function buildCommands(config: DeploymentConfig, catalog: GatekeeperCatal
     // here rather than inherited: a bundle built under a different value is wrong, not just stale.
     [{ args: submoduleBuild("@gadgets/workshop-frontend"), env: { VITE_CF_ACCESS_MODE: "true" } }],
     [{ args: submoduleBuild("@gadgets/router") }],
-    [{ args: submoduleBuild("@gadgets/workshop-backend") }],
+    // ness.: the Workshop bundles the NESS formats (ness/formatos/blueprints) as its standard output
+    // formats, set here rather than inherited, so no deploy ships the upstream ones by accident.
+    // Relative to cloudflare-os/packages/workshop-backend; a missing directory fails the build.
+    [{ args: submoduleBuild("@gadgets/workshop-backend"), env: { BUNDLED_BLUEPRINTS_DIR: NESS_FORMATOS_DIR } }],
   ];
 }
+
+/** The NESS formats directory, as `BUNDLED_BLUEPRINTS_DIR` takes it (relative to the Workshop backend package). */
+export const NESS_FORMATOS_DIR = "../../../ness/formatos/blueprints";
 
 /**
  * The Workers in deploy waves: those inside one wave can deploy concurrently, and each wave starts
