@@ -1,3 +1,17 @@
+diff --git a/blueprint.json b/blueprint.json
+index 8f685b2..90264f3 100644
+--- a/blueprint.json
++++ b/blueprint.json
+@@ -1,7 +1,7 @@
+ {
+   "blueprintId": "format.spreadsheet",
+-  "title": "Workspace Sheets",
+-  "description": "Use to write, format, and edit spreadsheets interactively or with natural language.",
++  "title": "Planilha ness.",
++  "description": "Planilhas no NESS Design System, com fórmulas, editadas na tela ou por linguagem natural. Exporta para Excel e CSV.",
+   "output": {
+     "id": "spreadsheet",
+     "noun": "Sheet",
 diff --git a/files/client.ts b/files/client.ts
 index cadef90..ef79c89 100644
 --- a/files/client.ts

@@ -9,7 +9,8 @@
 import type { SlideBackground } from "./protocol.ts";
 
 /** The theme accent highlights use where it reads well (client `C.orange`). */
-export const HIGHLIGHT_ACCENT = "#FF5F2E";
+// ness.: BlueDot, o destaque do NESS Design System.
+export const HIGHLIGHT_ACCENT = "#00ADE8";
 /** The least contrast a highlight keeps with the background behind it. */
 const MIN_HIGHLIGHT_CONTRAST = 3;
 

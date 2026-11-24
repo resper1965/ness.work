@@ -68,6 +68,10 @@ A `gatekeeper-*` package without a `wrangler.jsonc` is a library, not a Worker.
 
 Watch for upstream turning a package's `build` script into a Vite+ task, or changing the shape of its vite-plus config. A task and a script with the same name break the task graph. A filter that matches nothing exits 0, so the deploy ships the old bundle. Check that `buildCommands()` still rebuilds every package from source. An optional Gatekeeper is built in one step, `vp run -F <package name> --no-cache build`, which relies on its `build` task depending on `build:configurator` (`cloudflare-os/scripts/gatekeeper-configurator-vite-config.ts`); if that dependency goes, it needs its own step.
 
+## NESS Formats *(ness.work)*
+
+The Workshop's standard formats are `ness/formatos/blueprints`: the upstream blueprints plus `ness/formatos/patches`, with upstream's pptx library vendored into the Slides blueprint. After moving the pin, run `node ness/formatos/gerar.mjs`; a patch that no longer applies fails naming the format, and is redone on the new files and saved with `--salvar`. Then `--verificar` and `--testar` (upstream's blueprint tests and type-checks, run over the NESS formats). See `ness/formatos/README.md`.
+
 ## Renames
 
 Grep this repository for every path, package name and environment variable the upstream diff renames. A package renamed by the merge can leave its untracked `node_modules/` and `dist/` behind in the old directory; delete those.

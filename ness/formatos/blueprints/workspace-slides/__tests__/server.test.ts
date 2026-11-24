@@ -4,7 +4,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Gadget } from "../files/server.ts";
-import { BOTTOM_BAR_SVG } from "../files/lib/layouts.ts";
 import type { Block, Deck, DeckCallbacks, DeckPatch, LegacyDeckCallbacks, Slide, UndoState } from "../files/lib/protocol.ts";
 
 // The Slides Durable Object over in-memory storage. A real instance, since the class keeps private
@@ -102,8 +101,9 @@ describe("seeding", () => {
     expect(deck.themeVersion).toBe("workspace.2");
     expect(deck.slides).toHaveLength(1);
     const [cover] = deck.slides;
-    expect(cover!.background).toEqual({ color: "#F6821F", inset: false, coverOrange: true });
-    expect(cover!.blocks.map((b) => b.type)).toEqual(["title"]);
+    // ness.: a capa do NESS Design System (logo, barra BlueDot, título, subtítulo, rótulo).
+    expect(cover!.background).toEqual({ color: "#0E1116", inset: false, dotGrid: 0 });
+    expect(cover!.blocks.map((b) => b.type)).toEqual(["svg", "shape", "title", "text", "sectionLabel"]);
     expect(storage.data.get("meta")).toMatchObject({ v: 2, order: [cover!.id], rev: 0 });
     expect(storage.data.has(`s:${cover!.id}`)).toBe(true);
   });
@@ -166,7 +166,7 @@ describe("agent API", () => {
     for (const id of [copy!, first!.id, second]) await gadget.removeSlide(id);
     const left = (await gadget.getDeck()).slides;
     expect(left).toHaveLength(1);
-    expect(left[0]!.blocks.map((b) => b.type)).toEqual(["title"]);
+    expect(left[0]!.blocks.map((b) => b.type)).toEqual(["svg", "shape", "title", "text", "sectionLabel"]);
   });
 
   // History steps and patches key slides by id, and an object drops a "__proto__" key.
@@ -202,7 +202,7 @@ describe("agent API", () => {
     expect((await gadget.getDeck()).slides.map((s) => s.id)).toEqual(["s9"]);
     const reset = await gadget.resetAll();
     expect(reset.slides).toHaveLength(1);
-    expect(reset.slides[0]!.background.coverOrange).toBe(true);
+    expect(reset.slides[0]!.background.color).toBe("#0E1116");
     // Reset is an edit like any other: it can be undone.
     await gadget.undo();
     expect((await gadget.getDeck()).slides.map((s) => s.id)).toEqual(["s9"]);
@@ -233,38 +233,49 @@ describe("agent API", () => {
 
 describe("slide layouts", () => {
   const shape = (slide: Slide | null) => slide!.blocks.map((b) => [b.type, b.x, b.y]);
-  const bar = ["svg", 0, 663];
 
   it("builds each layout's slide, with fresh ids, for the agent to fill in", async () => {
+    // ness.: os layouts do template Apresentação do NESS Design System.
     const { gadget } = await loadGadget();
-    const title = await gadget.getSlide(await gadget.addSlide(null, { layout: "title" }));
-    expect(title!.background).toEqual({ color: "#F6821F", inset: false, coverOrange: true });
-    expect(shape(title)).toEqual([["title", 33, 245]]);
-    expect(title!.blocks[0]!.props).toMatchObject({ text: "[TITLE]", highlight: "" });
+    const dark = { color: "#0E1116", inset: false, dotGrid: 0 };
+    const get = async (layout: string) => (await gadget.getSlide(await gadget.addSlide(null, { layout: layout as never })))!;
 
-    const content = await gadget.getSlide(await gadget.addSlide(null, { layout: "content" }));
-    expect(content!.background).toEqual({ color: "#FFFFFF", inset: false, dotGrid: 0 });
-    expect(shape(content)).toEqual([["sectionLabel", 36, 35], ["title", 35, 76], ["text", 36, 204], bar]);
-    expect(content!.blocks[1]!.props).toMatchObject({ color: "#000000", highlight: "" });
-    expect(content!.blocks[3]!.props.markup).toBe(BOTTOM_BAR_SVG);
+    const title = await get("title");
+    expect(title.background).toEqual(dark);
+    expect(shape(title)).toEqual([["svg", 75, 205], ["shape", 75, 245], ["title", 75, 266], ["text", 75, 388], ["sectionLabel", 75, 426]]);
+    expect(title.blocks[0]!.props.markup).toBeTruthy();
+    expect(title.blocks[2]!.props).toMatchObject({ highlight: "", color: "#F1F5F9" });
 
-    const two = await gadget.getSlide(await gadget.addSlide(null, { layout: "twoColumn" }));
-    expect(two!.background.inset).toBe(false);
+    const section = await get("section");
+    expect(shape(section)).toEqual([["text", 75, 210], ["title", 75, 326], ["shape", 75, 386], ["text", 75, 401]]);
+    expect(section.blocks[0]!.props).toMatchObject({ text: "01", family: "head", color: "#00ADE8" });
+
+    const content = await get("content");
+    expect(content.background).toEqual(dark);
+    expect(shape(content)).toEqual([["sectionLabel", 75, 68], ["title", 75, 88], ["bulletList", 75, 160], ["card", 790, 210]]);
+
+    const data = await get("data");
+    expect(data.blocks.filter((b) => b.type === "shape").map((b) => b.x)).toEqual([75, 426, 777]);
+    expect(data.blocks.filter((b) => b.props.family === "head").map((b) => b.props.color)).toEqual(["#F1F5F9", "#F87171", "#10B981"]);
+
+    const flow = await get("flow");
+    expect(flow.blocks.filter((b) => b.type === "box").map((b) => b.props.tone)).toEqual(["ruby", "neutral", "tangerine"]);
+    expect(flow.blocks.filter((b) => b.type === "arrow")).toHaveLength(2);
+
+    const two = await get("twoColumn");
     expect(shape(two)).toEqual([
-      ["sectionLabel", 36, 35], ["title", 35, 76],
-      ["text", 36, 204], ["text", 36, 252], ["text", 609, 204], ["text", 609, 252],
-      bar,
+      ["sectionLabel", 75, 68], ["title", 75, 88],
+      ["text", 75, 180], ["text", 75, 220], ["text", 615, 180], ["text", 615, 220],
     ]);
 
-    const four = await gadget.getSlide(await gadget.addSlide(null, { layout: "fourColumn" }));
+    const four = await get("fourColumn");
     expect(shape(four)).toEqual([
-      ["sectionLabel", 36, 35], ["title", 35, 76],
-      ...[34, 328, 622, 916].flatMap((x) => [["text", x, 194], ["text", x, 228], ["text", x, 272]]),
-      bar,
+      ["sectionLabel", 75, 68], ["title", 75, 88],
+      ...[75, 340, 605, 870].flatMap((x) => [["text", x, 180], ["text", x, 210], ["text", x, 250]]),
     ]);
-    expect(four!.blocks.slice(2, -1).filter((_, i) => i % 3 === 0).map((b) => b.props.text)).toEqual(["01", "02", "03", "04"]);
+    expect(four.blocks.slice(2).filter((_, i) => i % 3 === 0).map((b) => b.props.text)).toEqual(["01", "02", "03", "04"]);
 
-    const ids = [title, content, two, four].flatMap((s) => s!.blocks.map((b) => b.id));
+    const ids = [title, section, content, data, flow, two, four].flatMap((s) => s.blocks.map((b) => b.id));
     expect(new Set(ids).size).toBe(ids.length);
   });
 
@@ -272,7 +283,7 @@ describe("slide layouts", () => {
     const { gadget } = await loadGadget();
     const id = await gadget.addSlide(0, { id: "intro", layout: "content", background: { dotGrid: 0.4 } });
     expect(id).toBe("intro");
-    expect((await gadget.getSlide(id))!.background).toEqual({ color: "#FFFFFF", inset: false, dotGrid: 0.4 });
+    expect((await gadget.getSlide(id))!.background).toEqual({ color: "#0E1116", inset: false, dotGrid: 0.4 });
     expect((await gadget.getDeck()).slides[0]!.id).toBe("intro");
   });
 
@@ -280,21 +291,21 @@ describe("slide layouts", () => {
     const { gadget } = await loadGadget();
     const rev = (await gadget.getDeck()).rev;
     await expect(gadget.addSlide(null, { layout: "bullets" as never })).rejects.toThrow(
-      'Unknown slide layout "bullets": use one of title, content, twoColumn, fourColumn.',
+      'Unknown slide layout "bullets": use one of title, section, content, data, flow, twoColumn, fourColumn.',
     );
     await expect(gadget.addSlide(null, { layout: "content", blocks: [] })).rejects.toThrow(/layout or blocks/);
     expect((await gadget.getDeck()).rev).toBe(rev);
   });
 
-  it("stores a slide assembled without a layout flat and white unless it asks otherwise", async () => {
+  it("stores a slide assembled without a layout flat and near-black unless it asks otherwise", async () => {
     const { gadget } = await loadGadget();
     const background = async (input: Parameters<Gadget["addSlide"]>[1]) => (await gadget.getSlide(await gadget.addSlide(null, input)))!.background;
-    expect(await background({ blocks: [] })).toEqual({ color: "#FFFFFF", inset: false });
+    expect(await background({ blocks: [] })).toEqual({ color: "#0E1116", inset: false });
     expect(await background({ background: { color: "#000000" }, blocks: [] })).toEqual({ color: "#000000", inset: false });
-    expect(await background({ background: { inset: true }, blocks: [] })).toEqual({ color: "#FFFFFF", inset: true });
+    expect(await background({ background: { inset: true }, blocks: [] })).toEqual({ color: "#0E1116", inset: true });
     // No input at all is still the cover slide a new deck starts with.
     const cover = (await gadget.getDeck()).slides[0]!;
-    expect(await gadget.getSlide(await gadget.addSlide())).toMatchObject({ background: cover.background, blocks: [{ type: "title", props: cover.blocks[0]!.props }] });
+    expect(await gadget.getSlide(await gadget.addSlide())).toMatchObject({ background: cover.background, blocks: cover.blocks.map((b) => ({ type: b.type, props: b.props })) });
   });
 });
 
@@ -413,6 +424,8 @@ describe("block normalization", () => {
 describe("media assets", () => {
   it("stores large media once, by hash, outside the slide, and inlines it for export", async () => {
     const { gadget, storage } = await loadGadget();
+    // ness.: a capa já guarda o logotipo como mídia.
+    const before = Object.keys((storage.data.get("assets") ?? {}) as object).length;
     const slideId = await gadget.addSlide(null, { blocks: [] });
     const src = bigImage();
     await gadget.addBlock(slideId, { type: "image", x: 0, y: 0, props: { src } });
@@ -420,7 +433,7 @@ describe("media assets", () => {
     const stored = (await gadget.getSlide(slideId))!.blocks.map((b) => b.props.src);
     expect(stored[0]).toMatch(/^asset:[0-9a-f]{32}$/);
     expect(stored[1]).toBe(stored[0]);
-    expect(Object.keys(storage.data.get("assets") as object)).toHaveLength(1);
+    expect(Object.keys(storage.data.get("assets") as object)).toHaveLength(before + 1);
     expect(await gadget.getAsset(stored[0]!)).toBe(src);
     const inlined = await gadget.getDeckInlined();
     expect(inlined.slides.find((s) => s.id === slideId)!.blocks.map((b) => b.props.src)).toEqual([src, src]);
@@ -709,9 +722,11 @@ describe("SVG rasters", () => {
 
   it("refuses a raster for artwork the deck doesn't show", async () => {
     const { gadget, storage } = await loadGadget();
+    // ness.: a capa já guarda o logotipo como mídia.
+    const before = [...storage.data.keys()].filter((k) => k.startsWith("a:"));
     expect(await gadget.saveSvgRaster("0".repeat(32), PNG_1x1)).toBe(false);
     expect(storage.data.has("rasters")).toBe(false);
-    expect([...storage.data.keys()].filter((k) => k.startsWith("a:"))).toEqual([]);
+    expect([...storage.data.keys()].filter((k) => k.startsWith("a:"))).toEqual(before);
   });
 
   it("asks only for artwork in the deck without a raster, keyed by source hash or asset hash", async () => {
@@ -780,7 +795,7 @@ describe("deck logo", () => {
     // An asset that holds something other than image data (here, SVG block markup).
     const slideId = (await gadget.getDeck()).slides[0]!.id;
     await gadget.addBlock(slideId, { type: "svg", x: 0, y: 0, props: { markup: `<svg>${"<g/>".repeat(1000)}</svg>` } });
-    const markupRef = (await gadget.getSlide(slideId))!.blocks[1]!.props.markup!;
+    const markupRef = (await gadget.getSlide(slideId))!.blocks.at(-1)!.props.markup!;
     await expect(gadget.setLogo({ src: markupRef })).rejects.toThrow(/PNG, JPEG or SVG/);
   });
 

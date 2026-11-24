@@ -435,8 +435,8 @@ var COMPONENTS: Record<string, ComponentDef> = {
       props: {
         text: "[TITLE]",
         fontSize: 58,
-        weight: 700,
-        color: "#FFFFFF",
+        weight: 600,
+        color: NESS.ink,
         letterSpacing: "-0.03em",
         highlight: "",
         lineHeight: 1.1
@@ -525,9 +525,9 @@ var COMPONENTS: Record<string, ComponentDef> = {
       props: {
         text: "[SUBTITLE]",
         fontSize: 17,
-        color: "#FFFFFF",
+        color: NESS.ink2,
         lineHeight: 1.5,
-        weight: 600
+        weight: 400
       }
     }),
     resizableW: true,
@@ -581,7 +581,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
       props: {
         text: "Text",
         fontSize: 19,
-        color: "#000000",
+        color: NESS.ink2,
         weight: 400,
         family: "sans",
         align: "left",
@@ -630,7 +630,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
           fontFamily: props.family === "head" ? HEAD : props.family === "mono" ? MONO : FONT,
           fontSize: (props.fontSize || 19) + "px",
           fontWeight: String(props.weight || 400),
-          color: props.color || "#000000",
+          color: props.color || NESS.ink2,
           textAlign: props.align || "left",
           lineHeight: String(props.lineHeight || 1.6),
           // Not in Format, but agents set it and the exporter honours it.
@@ -927,10 +927,10 @@ var COMPONENTS: Record<string, ComponentDef> = {
       h: 200,
       props: {
         kind: "rect",
-        fill: "#FFFFFF",
-        stroke: "#E5E5E5",
+        fill: NESS.surf,
+        stroke: NESS.line,
         strokeWidth: 1,
-        radius: 2,
+        radius: 0,
         opacity: 1
       }
     }),

@@ -1166,14 +1166,15 @@ function newBlankSlide(): Slide {
 }
 // An `addSlide` input as the slide to store. A layout builds the slide from
 // its template. Otherwise the slide is flat (no inset surface) unless the
-// input asks for the inset, and white unless it names a colour, so a slide an
+// input asks for the inset, and near-black (ness.) unless it names a colour, so a slide an
 // agent assembles itself never picks up the inset surface by accident. (The
 // renderer draws the inset whenever `inset` isn't false, which stored slides
 // rely on, so the default is set here rather than changed there.)
 function slideFromInput(input: SlideInput): LooseSlide {
   const { layout, ...rest } = input;
   const background = isPlainObject(rest.background) ? rest.background : {};
-  if (layout === undefined) return { ...rest, background: { color: "#FFFFFF", ...background, inset: background.inset === true } };
+  // ness.: um slide montado sem layout nasce no fundo near-black do NESS Design System.
+  if (layout === undefined) return { ...rest, background: { color: "#0E1116", ...background, inset: background.inset === true } };
   if (!isSlideLayout(layout)) throw new Error(`Unknown slide layout ${JSON.stringify(layout)}: use one of ${SLIDE_LAYOUT_IDS.join(", ")}.`);
   if (rest.blocks !== undefined) throw new Error("addSlide takes a layout or blocks, not both: build the slide from the layout, then edit or add blocks.");
   const template = SLIDE_LAYOUTS[layout]();

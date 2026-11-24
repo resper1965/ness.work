@@ -7,8 +7,9 @@
 //   node ness/formatos/gerar.mjs              regenera ness/formatos/blueprints/
 //   node ness/formatos/gerar.mjs --verificar  falha se blueprints/ não for o que os patches produzem
 //   node ness/formatos/gerar.mjs --salvar     grava em patches/ o que foi editado à mão em blueprints/
+//   node ness/formatos/gerar.mjs --testar     roda os testes e a checagem de tipos de fábrica sobre blueprints/
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -95,6 +96,25 @@ if (modo === "--salvar") {
     console.error(`${bp}: ${limpo ? "patch gravado" : "sem alterações"}`);
   }
   rmSync(join(BASE, ".."), { recursive: true, force: true });
+} else if (modo === "--testar") {
+  // Os testes de fábrica (vitest) e os tsconfig do pacote só enxergam blueprints/ ao lado deles. Aqui
+  // um pacote espelho num diretório temporário aponta para tudo de fábrica e troca só blueprints/.
+  const PACOTE = join(raiz, "cloudflare-os/packages/bundled-blueprints");
+  const tmp = mkdtempSync(join(tmpdir(), "formatos-teste-"));
+  const espelho = join(tmp, "packages", "bundled-blueprints");
+  mkdirSync(espelho, { recursive: true });
+  symlinkSync(join(raiz, "cloudflare-os/tsconfig.json"), join(tmp, "tsconfig.json"));
+  for (const f of readdirSync(PACOTE)) if (f !== "blueprints") symlinkSync(join(PACOTE, f), join(espelho, f));
+  cpSync(SAIDA, join(espelho, "blueprints"), { recursive: true });
+  const rodar = (bin, args) => execFileSync(join(espelho, "node_modules/.bin", bin), args, { cwd: espelho, stdio: "inherit" });
+  try {
+    for (const tsconfig of ["tsconfig.client.json", "tsconfig.server.json", "tsconfig.tests.json", "tsconfig.server-tests.json"]) {
+      rodar("tsc", ["-p", tsconfig, "--noEmit"]);
+    }
+    rodar("vitest", ["run", "--project", "gadgets", "blueprints/"]);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
 } else if (modo === "--verificar") {
   const tmp = mkdtempSync(join(tmpdir(), "formatos-"));
   gerar(join(tmp, "blueprints"));

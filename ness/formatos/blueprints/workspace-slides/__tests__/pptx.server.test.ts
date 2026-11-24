@@ -134,7 +134,7 @@ describe("Slides PowerPoint export", () => {
     expect(xml).not.toContain("?: ");
     expect(shapeNamed(xml, "Block 1 sectionLabel")).toContain(">RESULTS</a:t>");
     expect(shapeNamed(xml, "Block 2 title")).toContain(">38%</a:t>");
-    expect(shapeNamed(xml, "Block 5 bulletList")).toContain('<a:buChar char="&#x2022;"/>');
+    expect(shapeNamed(xml, "Block 5 bulletList")).toContain('<a:buChar char="&#x25AA;"/>'); // ness.: marcador quadrado
     expect(shapeNamed(xml, "Block 7 box surface")).toContain("<a:custDash>");
     expect(shapeNamed(xml, "Block 10 shape")).toContain('prst="ellipse"');
     expect(shapeNamed(xml, "Block 11 image")).toContain("<p:blipFill>");
@@ -364,6 +364,6 @@ describe("Slides PowerPoint logos", () => {
       slide([{ id: "t", type: "title", x: 35, y: 76, w: 984, props: { text: "Latency fell 38%", highlight: "38%", color: "#000000" } }]),
     ] });
     expect(runs(shapeNamed(text(parts, "ppt/slides/slide1.xml"), "Block 2 title"))).toEqual([["LeBron", "000000"], [" is the GOAT", "FFFFFF"]]);
-    expect(runs(shapeNamed(text(parts, "ppt/slides/slide2.xml"), "Block 1 title"))).toEqual([["Latency fell ", "000000"], ["38%", "FF5F2E"]]);
+    expect(runs(shapeNamed(text(parts, "ppt/slides/slide2.xml"), "Block 1 title"))).toEqual([["Latency fell ", "000000"], ["38%", "00ADE8"]]); // ness.: BlueDot
   });
 });

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { parse, type ParseError } from "jsonc-parser";
 import {
@@ -10,6 +12,7 @@ import {
   deployWaves,
   generateConfigs,
   generatedOutputs,
+  NESS_FORMATOS_DIR,
   PACKAGE_DIRS,
   PlaceholderError,
   validateConfig,
@@ -668,10 +671,20 @@ test("rebuilds the Context configurator app rather than replaying it", () => {
 });
 
 test("passes VITE_CF_ACCESS_MODE explicitly rather than inheriting it", () => {
-  const withAccessMode = buildCommands(validConfig, catalog).flat().filter(({ env }) => env);
+  const withAccessMode = buildCommands(validConfig, catalog).flat().filter(({ env }) => env?.VITE_CF_ACCESS_MODE);
   assert.deepEqual(withAccessMode.map(({ env }) => env), [{ VITE_CF_ACCESS_MODE: "true" }]);
   // It has to reach the frontend, which inlines it into the bundle, and nothing else.
   assert.match(withAccessMode[0].args.join(" "), /@gadgets\/workshop-frontend/);
+});
+
+test("builds the Workshop with the NESS formats, and nothing else with them", () => {
+  const withFormats = buildCommands(validConfig, catalog).flat().filter(({ env }) => env?.BUNDLED_BLUEPRINTS_DIR);
+  assert.deepEqual(withFormats.map(({ env }) => env), [{ BUNDLED_BLUEPRINTS_DIR: NESS_FORMATOS_DIR }]);
+  assert.match(withFormats[0].args.join(" "), /@gadgets\/workshop-backend/);
+  // Relative to cloudflare-os/packages/workshop-backend, it names this repository's ness/formatos/blueprints.
+  const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
+  assert.equal(resolve(repo, "cloudflare-os/packages/workshop-backend", NESS_FORMATOS_DIR), resolve(repo, "ness/formatos/blueprints"));
+  assert.ok(existsSync(resolve(repo, "ness/formatos/blueprints/workspace-slides/blueprint.json")));
 });
 
 test("builds what depends on itself in order, and everything else independently", () => {

@@ -1,7 +1,7 @@
 {
   "blueprintId": "format.spreadsheet",
-  "title": "Workspace Sheets",
-  "description": "Use to write, format, and edit spreadsheets interactively or with natural language.",
+  "title": "Planilha ness.",
+  "description": "Planilhas no NESS Design System, com fórmulas, editadas na tela ou por linguagem natural. Exporta para Excel e CSV.",
   "output": {
     "id": "spreadsheet",
     "noun": "Sheet",

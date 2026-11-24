@@ -93,9 +93,10 @@ describe("Word export", () => {
   it("maps headings to Word's heading styles, h4 and below to the third", async () => {
     const { document } = await exportDocx(["<h1>One</h1>", "<h2>Two</h2>", "<h3>Three</h3>", "<h4>Four</h4>", "<p>Body</p>"]);
     expect(attr(paragraph(document, "One"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading1");
-    expect(attr(paragraph(document, "Two"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading2");
-    expect(attr(paragraph(document, "Three"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading3");
-    expect(attr(paragraph(document, "Four"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading3");
+    // ness.: seções numeradas e subtítulos com ▸, em BlueDot.
+    expect(attr(paragraph(document, "01\u2002\u2002Two"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading2");
+    expect(attr(paragraph(document, "\u25B8\u2002Three"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading3");
+    expect(attr(paragraph(document, "\u25B8\u2002Four"), /<w:pStyle w:val="([^"]+)"/)).toBe("Heading3");
     expect(paragraph(document, "Body")).not.toContain("<w:pStyle");
   });
 
@@ -176,11 +177,11 @@ describe("Word export", () => {
       '<tr><td colspan="2">Wide</td></tr><tr><td rowspan="2">Tall</td><td>a</td></tr><tr><td>b</td></tr></tbody></table>',
     ]);
     const table = /<w:tbl>[\s\S]*<\/w:tbl>/.exec(document)![0];
-    expect([...table.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => Number(m[1]))).toEqual([2340, 7020]);
+    expect([...table.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => Number(m[1]))).toEqual([2438, 7314]); // ness.: A4, 9752 twips de largura útil
     expect(table).toContain('w:firstRow="1"');
     const rows = table.match(/<w:tr>[\s\S]*?<\/w:tr>/g)!;
     expect(rows).toHaveLength(4);
-    expect(rows[0]).toContain('<w:shd w:val="clear" w:color="auto" w:fill="F7F7F8"/>');
+    expect(rows[0]).toContain('<w:shd w:val="clear" w:color="auto" w:fill="0F172A"/>');
     // The header row repeats on each page the table runs onto; only it does.
     expect(rows[0]).toContain("<w:trPr><w:cantSplit/><w:tblHeader/></w:trPr>");
     expect(rows.slice(1).some((row) => row.includes("<w:tblHeader/>"))).toBe(false);
@@ -208,12 +209,12 @@ describe("Word export", () => {
     const rid = attr(document, /<a:blip r:embed="([^"]+)"/);
     expect(part("word/_rels/document.xml.rels")).toContain(`Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"`);
     expect(part("[Content_Types].xml")).toContain('<Default Extension="png" ContentType="image/png"/>');
-    // Half the editor's 700px measure is half of the 6.5in content width.
-    expect(attr(document, /<wp:extent cx="(\d+)"/)).toBe(String(Math.round(9360 / 2) * 635));
+    // Half the editor's 700px measure is half of the content width (ness.: A4, 9752 twips).
+    expect(attr(document, /<wp:extent cx="(\d+)"/)).toBe(String(Math.round(9752 / 2) * 635));
     expect(document.match(/<a:blip /g)).toHaveLength(1);
-    // The page's 6px corners: 6/700 of 9360 twips, as a share of the 175px-high picture's height.
+    // ness.: cantos retos, como na página.
     const geometry = /<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val (\d+)"\/><\/a:avLst><\/a:prstGeom>/.exec(document);
-    expect(Number(geometry?.[1])).toBe(Math.round(6 / 700 * 9360 * 635 / Number(attr(document, /<wp:extent cx="\d+" cy="(\d+)"/)) * 100000));
+    expect(Number(geometry?.[1])).toBe(0);
   });
 
   // Word shows "The picture can't be displayed" for every kind of WebP.
@@ -266,7 +267,7 @@ describe("Word export", () => {
     // Under the item's text, as on the page.
     expect(box).toContain('<w:tblInd w:w="420" w:type="dxa"/>');
     expect(box).toContain('<w:trPr><w:cantSplit/></w:trPr>');
-    expect(box).toContain('<w:shd w:val="clear" w:color="auto" w:fill="F3F3F4"/>');
+    expect(box).toContain('<w:shd w:val="clear" w:color="auto" w:fill="F8FAFC"/>');
     expect(attr(paragraph(box, "let x"), /<w:pStyle w:val="([^"]+)"/)).toBe("Code");
     const styles = part("word/styles.xml");
     const code = /<w:style [^>]*w:styleId="Code">.*?<\/w:style>/.exec(styles)![0];
@@ -277,8 +278,8 @@ describe("Word export", () => {
     const quoted = paragraph(document, "quoted");
     expect(document.match(/<w:tbl>/g)).toHaveLength(1);
     const borders = [...quoted.matchAll(/<w:(top|left|bottom|right) w:val="single" w:sz="(\d+)" w:space="\d+" w:color="([0-9A-F]{6})"\/>/g)];
-    expect(borders.map((m) => [m[1], Number(m[2]) / 8, m[3]])).toEqual([["top", 6, "F3F3F4"], ["left", 1.5, "DADADC"], ["bottom", 6, "F3F3F4"], ["right", 7.5, "F3F3F4"]]);
-    expect(quoted).toMatch(/<\/w:pBdr><w:shd w:val="clear" w:color="auto" w:fill="F3F3F4"\/>.*<w:spacing [^>]*\/><w:ind w:right="180" /);
+    expect(borders.map((m) => [m[1], Number(m[2]) / 8, m[3]])).toEqual([["top", 6, "F8FAFC"], ["left", 1.5, "00ADE8"], ["bottom", 6, "F8FAFC"], ["right", 7.5, "F8FAFC"]]);
+    expect(quoted).toMatch(/<\/w:pBdr><w:shd w:val="clear" w:color="auto" w:fill="F8FAFC"\/>.*<w:spacing [^>]*\/><w:ind w:right="180" /);
   });
 
   it("keeps a heading that starts a list item a heading, numbered with the item", async () => {
@@ -289,7 +290,7 @@ describe("Word export", () => {
     expect(attr(paragraph(document, "First"), /<w:pStyle w:val="([^"]+)"/)).toBe("ListParagraph");
     // Word draws the number in the paragraph mark's formatting: the page's marker is the item's
     // (body size, plain, muted), not the heading's. The mark's properties close the pPr.
-    expect(heading).toMatch(/<w:rPr><w:b w:val="0"\/><w:bCs w:val="0"\/><w:color w:val="7B7B84"\/><w:sz w:val="22"\/><w:szCs w:val="22"\/><\/w:rPr><\/w:pPr>/);
+    expect(heading).toMatch(/<w:rPr><w:b w:val="0"\/><w:bCs w:val="0"\/><w:color w:val="475569"\/><w:sz w:val="22"\/><w:szCs w:val="22"\/><\/w:rPr><\/w:pPr>/);
     expect(paragraph(document, "First")).not.toContain("<w:rPr><w:b w:val=\"0\"/>");
   });
 
@@ -344,9 +345,9 @@ describe("Word export", () => {
   it("repeats the text colour on links, which Apple's readers would otherwise paint blue", async () => {
     const { document } = await exportDocx(['<p><a href="https://a.example">plain</a> <span class="tc-red"><a href="https://b.example">red</a></span></p>', '<blockquote><a href="https://c.example">quoted</a></blockquote>']);
     const runOf = (text: string) => [...document.matchAll(/<w:r>([\s\S]*?)<\/w:r>/g)].map((m) => m[1]!).find((r) => textOf(r) === text)!;
-    expect(runOf("plain")).toContain('<w:rStyle w:val="Hyperlink"/><w:color w:val="1B1B1F"/>');
+    expect(runOf("plain")).toContain('<w:rStyle w:val="Hyperlink"/><w:color w:val="0F172A"/>');
     expect(runOf("red")).toContain('<w:color w:val="D44C47"/>');
-    expect(runOf("quoted")).toContain('<w:color w:val="46464E"/>');
+    expect(runOf("quoted")).toContain('<w:color w:val="334155"/>');
   });
 
   it("expands a code block's tabs to the page's two-column stops", async () => {
@@ -406,7 +407,7 @@ describe("Word export", () => {
     expect(attr(paragraph(document, "Intro"), /<w:left w:val="single" w:sz="12" w:space="(\d+)"/)).toBe("10");
     // The item's first line starts at 200 + 420 - 300 = 320 twips, 16pt right of the rule at 0.
     expect(attr(paragraph(document, "quoted item"), /<w:left w:val="single" w:sz="12" w:space="(\d+)"/)).toBe("16");
-    expect(paragraph(document, "quoted item")).toContain('<w:color w:val="46464E"/>');
+    expect(paragraph(document, "quoted item")).toContain('<w:color w:val="334155"/>');
     expect(paragraph(document, "Intro")).toContain("<w:keepNext/>");
     expect(paragraph(document, "quoted item")).toContain("<w:keepNext/>");
     expect(paragraph(document, "Outro")).not.toContain("<w:keepNext/>");
@@ -444,8 +445,8 @@ describe("Word export", () => {
       `<p><img src="${PNG}" style="width: .px;" width="0"></p>`,
     ]);
     expect(attr(paragraph(document, "huge"), /<w:sz w:val="(\d+)"/)).toBe("3276");
-    expect(attr(paragraph(document, "far"), /w:left="(\d+)"/)).toBe("9360");
-    expect(attr(paragraph(document, "far"), /w:firstLine="(\d+)"/)).toBe("9360");
+    expect(attr(paragraph(document, "far"), /w:left="(\d+)"/)).toBe("9752");
+    expect(attr(paragraph(document, "far"), /w:firstLine="(\d+)"/)).toBe("9752");
     expect(part("word/numbering.xml")).toContain('<w:start w:val="32767"/>');
     expect(document).not.toContain("NaN");
     expect(Number(attr(document, /<wp:extent cx="(\d+)"/))).toBeGreaterThan(1);

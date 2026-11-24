@@ -1,5 +1,393 @@
+diff --git a/__tests__/pptx.server.test.ts b/__tests__/pptx.server.test.ts
+index 768d4bd..64ddba0 100644
+--- a/__tests__/pptx.server.test.ts
++++ b/__tests__/pptx.server.test.ts
+@@ -134,7 +134,7 @@ describe("Slides PowerPoint export", () => {
+     expect(xml).not.toContain("?: ");
+     expect(shapeNamed(xml, "Block 1 sectionLabel")).toContain(">RESULTS</a:t>");
+     expect(shapeNamed(xml, "Block 2 title")).toContain(">38%</a:t>");
+-    expect(shapeNamed(xml, "Block 5 bulletList")).toContain('<a:buChar char="&#x2022;"/>');
++    expect(shapeNamed(xml, "Block 5 bulletList")).toContain('<a:buChar char="&#x25AA;"/>'); // ness.: marcador quadrado
+     expect(shapeNamed(xml, "Block 7 box surface")).toContain("<a:custDash>");
+     expect(shapeNamed(xml, "Block 10 shape")).toContain('prst="ellipse"');
+     expect(shapeNamed(xml, "Block 11 image")).toContain("<p:blipFill>");
+@@ -364,6 +364,6 @@ describe("Slides PowerPoint logos", () => {
+       slide([{ id: "t", type: "title", x: 35, y: 76, w: 984, props: { text: "Latency fell 38%", highlight: "38%", color: "#000000" } }]),
+     ] });
+     expect(runs(shapeNamed(text(parts, "ppt/slides/slide1.xml"), "Block 2 title"))).toEqual([["LeBron", "000000"], [" is the GOAT", "FFFFFF"]]);
+-    expect(runs(shapeNamed(text(parts, "ppt/slides/slide2.xml"), "Block 1 title"))).toEqual([["Latency fell ", "000000"], ["38%", "FF5F2E"]]);
++    expect(runs(shapeNamed(text(parts, "ppt/slides/slide2.xml"), "Block 1 title"))).toEqual([["Latency fell ", "000000"], ["38%", "00ADE8"]]); // ness.: BlueDot
+   });
+ });
+diff --git a/__tests__/server.test.ts b/__tests__/server.test.ts
+index 4fb4c8e..18fb697 100644
+--- a/__tests__/server.test.ts
++++ b/__tests__/server.test.ts
+@@ -4,7 +4,6 @@ import { dirname, join } from "node:path";
+ import { fileURLToPath } from "node:url";
+ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+ import { Gadget } from "../files/server.ts";
+-import { BOTTOM_BAR_SVG } from "../files/lib/layouts.ts";
+ import type { Block, Deck, DeckCallbacks, DeckPatch, LegacyDeckCallbacks, Slide, UndoState } from "../files/lib/protocol.ts";
+ 
+ // The Slides Durable Object over in-memory storage. A real instance, since the class keeps private
+@@ -102,8 +101,9 @@ describe("seeding", () => {
+     expect(deck.themeVersion).toBe("workspace.2");
+     expect(deck.slides).toHaveLength(1);
+     const [cover] = deck.slides;
+-    expect(cover!.background).toEqual({ color: "#F6821F", inset: false, coverOrange: true });
+-    expect(cover!.blocks.map((b) => b.type)).toEqual(["title"]);
++    // ness.: a capa do NESS Design System (logo, barra BlueDot, título, subtítulo, rótulo).
++    expect(cover!.background).toEqual({ color: "#0E1116", inset: false, dotGrid: 0 });
++    expect(cover!.blocks.map((b) => b.type)).toEqual(["svg", "shape", "title", "text", "sectionLabel"]);
+     expect(storage.data.get("meta")).toMatchObject({ v: 2, order: [cover!.id], rev: 0 });
+     expect(storage.data.has(`s:${cover!.id}`)).toBe(true);
+   });
+@@ -166,7 +166,7 @@ describe("agent API", () => {
+     for (const id of [copy!, first!.id, second]) await gadget.removeSlide(id);
+     const left = (await gadget.getDeck()).slides;
+     expect(left).toHaveLength(1);
+-    expect(left[0]!.blocks.map((b) => b.type)).toEqual(["title"]);
++    expect(left[0]!.blocks.map((b) => b.type)).toEqual(["svg", "shape", "title", "text", "sectionLabel"]);
+   });
+ 
+   // History steps and patches key slides by id, and an object drops a "__proto__" key.
+@@ -202,7 +202,7 @@ describe("agent API", () => {
+     expect((await gadget.getDeck()).slides.map((s) => s.id)).toEqual(["s9"]);
+     const reset = await gadget.resetAll();
+     expect(reset.slides).toHaveLength(1);
+-    expect(reset.slides[0]!.background.coverOrange).toBe(true);
++    expect(reset.slides[0]!.background.color).toBe("#0E1116");
+     // Reset is an edit like any other: it can be undone.
+     await gadget.undo();
+     expect((await gadget.getDeck()).slides.map((s) => s.id)).toEqual(["s9"]);
+@@ -233,38 +233,49 @@ describe("agent API", () => {
+ 
+ describe("slide layouts", () => {
+   const shape = (slide: Slide | null) => slide!.blocks.map((b) => [b.type, b.x, b.y]);
+-  const bar = ["svg", 0, 663];
+ 
+   it("builds each layout's slide, with fresh ids, for the agent to fill in", async () => {
++    // ness.: os layouts do template Apresentação do NESS Design System.
+     const { gadget } = await loadGadget();
+-    const title = await gadget.getSlide(await gadget.addSlide(null, { layout: "title" }));
+-    expect(title!.background).toEqual({ color: "#F6821F", inset: false, coverOrange: true });
+-    expect(shape(title)).toEqual([["title", 33, 245]]);
+-    expect(title!.blocks[0]!.props).toMatchObject({ text: "[TITLE]", highlight: "" });
+-
+-    const content = await gadget.getSlide(await gadget.addSlide(null, { layout: "content" }));
+-    expect(content!.background).toEqual({ color: "#FFFFFF", inset: false, dotGrid: 0 });
+-    expect(shape(content)).toEqual([["sectionLabel", 36, 35], ["title", 35, 76], ["text", 36, 204], bar]);
+-    expect(content!.blocks[1]!.props).toMatchObject({ color: "#000000", highlight: "" });
+-    expect(content!.blocks[3]!.props.markup).toBe(BOTTOM_BAR_SVG);
+-
+-    const two = await gadget.getSlide(await gadget.addSlide(null, { layout: "twoColumn" }));
+-    expect(two!.background.inset).toBe(false);
++    const dark = { color: "#0E1116", inset: false, dotGrid: 0 };
++    const get = async (layout: string) => (await gadget.getSlide(await gadget.addSlide(null, { layout: layout as never })))!;
++
++    const title = await get("title");
++    expect(title.background).toEqual(dark);
++    expect(shape(title)).toEqual([["svg", 75, 205], ["shape", 75, 245], ["title", 75, 266], ["text", 75, 388], ["sectionLabel", 75, 426]]);
++    expect(title.blocks[0]!.props.markup).toBeTruthy();
++    expect(title.blocks[2]!.props).toMatchObject({ highlight: "", color: "#F1F5F9" });
++
++    const section = await get("section");
++    expect(shape(section)).toEqual([["text", 75, 210], ["title", 75, 326], ["shape", 75, 386], ["text", 75, 401]]);
++    expect(section.blocks[0]!.props).toMatchObject({ text: "01", family: "head", color: "#00ADE8" });
++
++    const content = await get("content");
++    expect(content.background).toEqual(dark);
++    expect(shape(content)).toEqual([["sectionLabel", 75, 68], ["title", 75, 88], ["bulletList", 75, 160], ["card", 790, 210]]);
++
++    const data = await get("data");
++    expect(data.blocks.filter((b) => b.type === "shape").map((b) => b.x)).toEqual([75, 426, 777]);
++    expect(data.blocks.filter((b) => b.props.family === "head").map((b) => b.props.color)).toEqual(["#F1F5F9", "#F87171", "#10B981"]);
++
++    const flow = await get("flow");
++    expect(flow.blocks.filter((b) => b.type === "box").map((b) => b.props.tone)).toEqual(["ruby", "neutral", "tangerine"]);
++    expect(flow.blocks.filter((b) => b.type === "arrow")).toHaveLength(2);
++
++    const two = await get("twoColumn");
+     expect(shape(two)).toEqual([
+-      ["sectionLabel", 36, 35], ["title", 35, 76],
+-      ["text", 36, 204], ["text", 36, 252], ["text", 609, 204], ["text", 609, 252],
+-      bar,
++      ["sectionLabel", 75, 68], ["title", 75, 88],
++      ["text", 75, 180], ["text", 75, 220], ["text", 615, 180], ["text", 615, 220],
+     ]);
+ 
+-    const four = await gadget.getSlide(await gadget.addSlide(null, { layout: "fourColumn" }));
++    const four = await get("fourColumn");
+     expect(shape(four)).toEqual([
+-      ["sectionLabel", 36, 35], ["title", 35, 76],
+-      ...[34, 328, 622, 916].flatMap((x) => [["text", x, 194], ["text", x, 228], ["text", x, 272]]),
+-      bar,
++      ["sectionLabel", 75, 68], ["title", 75, 88],
++      ...[75, 340, 605, 870].flatMap((x) => [["text", x, 180], ["text", x, 210], ["text", x, 250]]),
+     ]);
+-    expect(four!.blocks.slice(2, -1).filter((_, i) => i % 3 === 0).map((b) => b.props.text)).toEqual(["01", "02", "03", "04"]);
++    expect(four.blocks.slice(2).filter((_, i) => i % 3 === 0).map((b) => b.props.text)).toEqual(["01", "02", "03", "04"]);
+ 
+-    const ids = [title, content, two, four].flatMap((s) => s!.blocks.map((b) => b.id));
++    const ids = [title, section, content, data, flow, two, four].flatMap((s) => s.blocks.map((b) => b.id));
+     expect(new Set(ids).size).toBe(ids.length);
+   });
+ 
+@@ -272,7 +283,7 @@ describe("slide layouts", () => {
+     const { gadget } = await loadGadget();
+     const id = await gadget.addSlide(0, { id: "intro", layout: "content", background: { dotGrid: 0.4 } });
+     expect(id).toBe("intro");
+-    expect((await gadget.getSlide(id))!.background).toEqual({ color: "#FFFFFF", inset: false, dotGrid: 0.4 });
++    expect((await gadget.getSlide(id))!.background).toEqual({ color: "#0E1116", inset: false, dotGrid: 0.4 });
+     expect((await gadget.getDeck()).slides[0]!.id).toBe("intro");
+   });
+ 
+@@ -280,21 +291,21 @@ describe("slide layouts", () => {
+     const { gadget } = await loadGadget();
+     const rev = (await gadget.getDeck()).rev;
+     await expect(gadget.addSlide(null, { layout: "bullets" as never })).rejects.toThrow(
+-      'Unknown slide layout "bullets": use one of title, content, twoColumn, fourColumn.',
++      'Unknown slide layout "bullets": use one of title, section, content, data, flow, twoColumn, fourColumn.',
+     );
+     await expect(gadget.addSlide(null, { layout: "content", blocks: [] })).rejects.toThrow(/layout or blocks/);
+     expect((await gadget.getDeck()).rev).toBe(rev);
+   });
+ 
+-  it("stores a slide assembled without a layout flat and white unless it asks otherwise", async () => {
++  it("stores a slide assembled without a layout flat and near-black unless it asks otherwise", async () => {
+     const { gadget } = await loadGadget();
+     const background = async (input: Parameters<Gadget["addSlide"]>[1]) => (await gadget.getSlide(await gadget.addSlide(null, input)))!.background;
+-    expect(await background({ blocks: [] })).toEqual({ color: "#FFFFFF", inset: false });
++    expect(await background({ blocks: [] })).toEqual({ color: "#0E1116", inset: false });
+     expect(await background({ background: { color: "#000000" }, blocks: [] })).toEqual({ color: "#000000", inset: false });
+-    expect(await background({ background: { inset: true }, blocks: [] })).toEqual({ color: "#FFFFFF", inset: true });
++    expect(await background({ background: { inset: true }, blocks: [] })).toEqual({ color: "#0E1116", inset: true });
+     // No input at all is still the cover slide a new deck starts with.
+     const cover = (await gadget.getDeck()).slides[0]!;
+-    expect(await gadget.getSlide(await gadget.addSlide())).toMatchObject({ background: cover.background, blocks: [{ type: "title", props: cover.blocks[0]!.props }] });
++    expect(await gadget.getSlide(await gadget.addSlide())).toMatchObject({ background: cover.background, blocks: cover.blocks.map((b) => ({ type: b.type, props: b.props })) });
+   });
+ });
+ 
+@@ -413,6 +424,8 @@ describe("block normalization", () => {
+ describe("media assets", () => {
+   it("stores large media once, by hash, outside the slide, and inlines it for export", async () => {
+     const { gadget, storage } = await loadGadget();
++    // ness.: a capa já guarda o logotipo como mídia.
++    const before = Object.keys((storage.data.get("assets") ?? {}) as object).length;
+     const slideId = await gadget.addSlide(null, { blocks: [] });
+     const src = bigImage();
+     await gadget.addBlock(slideId, { type: "image", x: 0, y: 0, props: { src } });
+@@ -420,7 +433,7 @@ describe("media assets", () => {
+     const stored = (await gadget.getSlide(slideId))!.blocks.map((b) => b.props.src);
+     expect(stored[0]).toMatch(/^asset:[0-9a-f]{32}$/);
+     expect(stored[1]).toBe(stored[0]);
+-    expect(Object.keys(storage.data.get("assets") as object)).toHaveLength(1);
++    expect(Object.keys(storage.data.get("assets") as object)).toHaveLength(before + 1);
+     expect(await gadget.getAsset(stored[0]!)).toBe(src);
+     const inlined = await gadget.getDeckInlined();
+     expect(inlined.slides.find((s) => s.id === slideId)!.blocks.map((b) => b.props.src)).toEqual([src, src]);
+@@ -709,9 +722,11 @@ describe("SVG rasters", () => {
+ 
+   it("refuses a raster for artwork the deck doesn't show", async () => {
+     const { gadget, storage } = await loadGadget();
++    // ness.: a capa já guarda o logotipo como mídia.
++    const before = [...storage.data.keys()].filter((k) => k.startsWith("a:"));
+     expect(await gadget.saveSvgRaster("0".repeat(32), PNG_1x1)).toBe(false);
+     expect(storage.data.has("rasters")).toBe(false);
+-    expect([...storage.data.keys()].filter((k) => k.startsWith("a:"))).toEqual([]);
++    expect([...storage.data.keys()].filter((k) => k.startsWith("a:"))).toEqual(before);
+   });
+ 
+   it("asks only for artwork in the deck without a raster, keyed by source hash or asset hash", async () => {
+@@ -780,7 +795,7 @@ describe("deck logo", () => {
+     // An asset that holds something other than image data (here, SVG block markup).
+     const slideId = (await gadget.getDeck()).slides[0]!.id;
+     await gadget.addBlock(slideId, { type: "svg", x: 0, y: 0, props: { markup: `<svg>${"<g/>".repeat(1000)}</svg>` } });
+-    const markupRef = (await gadget.getSlide(slideId))!.blocks[1]!.props.markup!;
++    const markupRef = (await gadget.getSlide(slideId))!.blocks.at(-1)!.props.markup!;
+     await expect(gadget.setLogo({ src: markupRef })).rejects.toThrow(/PNG, JPEG or SVG/);
+   });
+ 
+diff --git a/blueprint.json b/blueprint.json
+index d84ee74..f10fd2b 100644
+--- a/blueprint.json
++++ b/blueprint.json
+@@ -1,7 +1,7 @@
+ {
+   "blueprintId": "format.slides",
+-  "title": "Workspace Slides",
+-  "description": "Use to build slide decks with your corporate style interactively or with natural language. Once you create your own slides, add connections to build slides with text and charts powered by real data.",
++  "title": "Apresentação ness.",
++  "description": "Apresentações no NESS Design System (capa, seção, conteúdo, dados, fluxo), editadas na tela ou por linguagem natural. Exporta para PowerPoint, HTML e PDF.",
+   "output": {
+     "id": "presentation",
+     "noun": "Slides",
+diff --git a/files/README.md b/files/README.md
+index cc43f4b..10cf3b6 100644
+--- a/files/README.md
++++ b/files/README.md
+@@ -1,7 +1,7 @@
+ # Slides
+ 
+-A composable, multiplayer slide deck builder, in a clean branded style (an
+-orange accent palette on white slides). The deck is data: an ordered list of
++A composable, multiplayer slide deck builder in the NESS Design System style
++(near-black slides, one accent: BlueDot `#00ADE8`). The deck is data: an ordered list of
+ slides, each a background plus typed blocks placed on a 1200 × 675 canvas.
+ People edit it in the browser; agents edit it through the RPC API below, and
+ open editors show each agent change landing as it is saved. It exports to
+@@ -23,12 +23,14 @@ PowerPoint, HTML and PDF.
+ 
+ 1. **Build new slides from a layout.** `addSlide(atIndex, { layout })`
+    creates an on-brand slide with placeholder blocks; then fill them in with
+-   `updateBlock`, one block per call. Layouts: `title` (orange cover),
+-   `content` (eyebrow, headline, body), `twoColumn`, `fourColumn` (see
+-   "Layouts"). Only assemble a slide from raw blocks when no layout fits.
+-2. **Slides are white with the brand bar** unless the user asks otherwise:
+-   white background, Ruby eyebrow, black headline, the gradient bar at the
+-   bottom. The `content`-based layouts give you exactly that.
++   `updateBlock`, one block per call. Layouts: `title` (cover with the ness.
++   logo), `section` (numbered opener), `content` (eyebrow, headline, bullets,
++   reading card), `data` (three indicators), `flow` (three steps with arrows),
++   `twoColumn`, `fourColumn` (see "Layouts"). Only assemble a slide from raw
++   blocks when no layout fits.
++2. **Slides are near-black** (`#0E1116`) unless the user asks otherwise:
++   mono uppercase eyebrow, Montserrat headline in `#F1F5F9`, Inter body in
++   `#CBD5E1`, BlueDot as the only accent. The layouts give you exactly that.
+ 3. **Never set `background.inset`** unless the user asks for the inset
+    surface (a cream rounded panel). Leave it out; `addSlide` stores
+    `inset: false`.
+@@ -56,17 +58,18 @@ const pause = () => new Promise((r) => setTimeout(r, 150));
+ const slides = await deck.listSlides();
+ 
+ const id = await deck.addSlide(slides.length, { layout: "content" });
+-const [eyebrow, title, body] = (await deck.getSlide(id)).blocks; // sectionLabel, title, text, brand bar
+-await deck.updateBlock(id, eyebrow.id, { props: { text: "RESULTS" } });
++const [eyebrow, title, bullets, card] = (await deck.getSlide(id)).blocks; // sectionLabel, title, bulletList, card
++await deck.updateBlock(id, eyebrow.id, { props: { text: "CONFORMIDADE" } });
+ await pause();
+-await deck.updateBlock(id, title.id, { props: { text: "Workers cut p95 latency by 38%" } });
++await deck.updateBlock(id, title.id, { props: { text: "78 dos 93 controles já estão implementados" } });
+ await pause();
+-await deck.updateBlock(id, body.id, { props: { text: "Three teams moved their APIs in a week. Median latency fell by a third." } });
++await deck.updateBlock(id, bullets.id, { props: { text: "84% do Anexo A coberto.\n12 gaps abertos, 3 de risco alto.\nAuditoria no 1º trimestre." } });
++await pause();
++await deck.updateBlock(id, card.id, { props: { body: "Fechar os 3 gaps de risco alto antes da auditoria." } });
+ ```
+ 
+-Don't need a placeholder? Remove it with `removeBlock` (the eyebrow is
+-optional). Need a bullet list instead of body text? Remove the `text` block
+-and `addBlock` a `bulletList` at `x 36, y 204`.
++Don't need a placeholder? Remove it with `removeBlock` (the eyebrow and the
++card are optional).
+ 
+ ## Layouts
+ 
+@@ -76,25 +79,32 @@ listed; each placeholder text is meant to be replaced.
+ 
+ | Layout | Background | Blocks |
+ | --- | --- | --- |
+-| `title` | `{ color: "#F6821F", inset: false, coverOrange: true }` (orange cover art) | `title` "[TITLE]" at 33,245 w760, 58px/700 white |
+-| `content` | `{ color: "#FFFFFF", inset: false, dotGrid: 0 }` | `sectionLabel` at 36,35; `title` at 35,76 w984, 28px/600 black; `text` body at 36,204 w760, 19px/400/1.6; brand bar |
+-| `twoColumn` | as `content` | `sectionLabel`; `title`; then per column (x 36, 609; w 553): heading `text` at y204 (18px/600) and body `text` at y252 (19px/400); brand bar |
+-| `fourColumn` | as `content` | `sectionLabel`; `title`; then per column (x 34, 328, 622, 916; w 260): number `text` "01"… at y194 (14px/600 Ruby), heading at y228 (16px/600), body at y272 (15px/400 `#747474`); brand bar |
+-
+-The brand bar is an `svg` block at `x 0, y 663, w 1200, h 12` holding the
+-Ruby → Tangerine → Mango gradient (`BOTTOM_BAR_SVG`), `fit: "stretch"`.
+-Keep it on content slides.
++Every layout's background is `{ color: "#0E1116", inset: false, dotGrid: 0 }`.
++
++| Layout | Blocks |
++| --- | --- |
++| `title` | `svg` ness. logo at 75,205; BlueDot bar (`shape` 45×3) at 75,245; `title` at 75,266 w800 (49px/600); subtitle `text` at 75,388 (17px `#CBD5E1`); `sectionLabel` date/classification at 75,426 |
++| `section` | number `text` "01" at 75,210 (101px Montserrat BlueDot); `title` at 75,326 (38px); rule `shape` 68×2; description `text` at 75,401 |
++| `content` | `sectionLabel` at 75,68; `title` at 75,88 w640 (32px); `bulletList` at 75,160 w640; reading `card` at 790,210 w338 h230 |
++| `data` | `sectionLabel`; `title`; per indicator (x 75, 426, 777): surface `shape` 350×150, `sectionLabel`, value `text` (41px Montserrat; white, `#F87171` or `#10B981`), caption `text` (10px mono); source line `text` at 75,360 |
++| `flow` | `sectionLabel`; `title`; three `box` (tones `ruby`, `neutral`, `tangerine`: red, BlueDot and green side stripes) at y260, joined by two BlueDot `arrow`s; rule `text` at 75,420 |
++| `twoColumn` | `sectionLabel`; `title`; per column (x 75, 615; w 500): heading `text` at y180 (18px Montserrat) and body `text` at y220 |
++| `fourColumn` | `sectionLabel`; `title`; per column (x 75, 340, 605, 870; w 240): number `text` "01"… at y180 (13px mono BlueDot), heading at y210, body at y250 |
+ 
+ With `layout`, `blocks` must be absent (passing both is an error), an
+ `id` is kept if free, and a `background` is merged over the layout's. An
+ unknown layout is refused with an error listing the valid ones.
+ 
+-**Brand style** for anything you add by hand: Inter throughout, weights
+-400/500/600/700. Ruby `#FF6633` (eyebrows, accents), Tangerine `#F6821F`,
+-Mango `#FBAD41`, black `#000000` text, muted gray `#747474`, rules
+-`#E5E5E5`. Headlines are specific assertions, at most two lines; body copy
+-roughly 40–60 words with white space on the right. Cards and boxes are flat
+-white with thin rules.
++**Brand style** (NESS Design System) for anything you add by hand: Montserrat
++600 for headlines (`text` with `family: "head"`), Inter for body, JetBrains Mono
++uppercase for labels (`family: "mono"`). Background `#0E1116`, surfaces
++`#16191F`, rules `rgba(255,255,255,0.14)`, text `#F1F5F9` / `#CBD5E1` /
++`#94A3B8`, BlueDot `#00ADE8` as the only accent, `#10B981` ok, `#F59E0B`
++warning, `#F87171` gap. No gradients, no rounded corners, no shadows.
++Headlines are specific assertions, at most two lines; body copy roughly 40–60
++words with space on the right. Cards and boxes are surfaces with a thin rule
++and a 2px side stripe in their tone (`neutral` BlueDot, `tangerine` green,
++`ruby` red).
+ 
+ ## API
+ 
+@@ -115,7 +125,7 @@ All methods are on the binding's `.rpc` stub. Generated ids are 8-character stri
+ - `addSlide(atIndex?, slide?)` → id. `atIndex` null/omitted appends.
+   `slide` is `{ layout }` (above) or `{ id?, background?, blocks? }`. A
+   slide given without a layout is stored with `inset: false` unless its
+-  background says `inset: true`, and white unless it names a `color`. No
++  background says `inset: true`, and near-black (`#0E1116`) unless it names a `color`. No
+   `slide` at all adds a title cover.
+ - `updateSlide(slideId, { background?, blocks? })`: `background` is merged
+   key by key; `blocks` replaces the whole list.
+@@ -170,25 +180,25 @@ Every block is `{ id, type, x, y, w?, h?, props }` in slide coordinates
+ 
+ | Type | Props (defaults) | Notes |
+ | --- | --- | --- |
+-| `sectionLabel` | `text` | The eyebrow: always Ruby, 10px, 600, uppercase. |
++| `sectionLabel` | `text` | The eyebrow: JetBrains Mono 10px/500, `#94A3B8`, uppercase, tracked .16em. |
+ | `title` | `text`, `fontSize` (58), `weight` (700), `color`, `letterSpacing`, `lineHeight`, `highlight` ("") | Resizable width. |
+ | `subtitle` | `text`, `fontSize` (17), `weight` (600), `color`, `lineHeight` | |
+-| `text` | `text`, `fontSize` (19), `weight` (400), `color` (#000000), `align` (left/center/right), `lineHeight` (1.6), `family` ("sans") | Body copy; `\n` breaks lines. |
+-| `bulletList` | `text` (one item per line), `treatment` (`primary` 19px / `compact` 17px) | Tangerine dots; shows at most 6 items. |
++| `text` | `text`, `fontSize` (19), `weight` (400), `color` (#CBD5E1), `align` (left/center/right), `lineHeight` (1.6), `family` (`sans` Inter / `head` Montserrat / `mono` JetBrains Mono) | Body copy; `\n` breaks lines. |
++| `bulletList` | `text` (one item per line), `treatment` (`primary` 19px / `compact` 17px) | BlueDot square markers; shows at most 6 items. |
+ | `card` | `eyebrow`, `title`, `body`, `tone`, `topStripe` | Needs `w`, `h`. Tone and stripe currently draw nothing different. |
+ | `box` | `title`, `body`, `dashed`, `tone` | Diagram box; needs `w`, `h`. |
+-| `tonePill` | `text`, `tone` (`neutral`/`tangerine`/`ruby`) | |
++| `tonePill` | `text`, `tone` (`neutral` gray / `tangerine` BlueDot / `ruby` red) | |
+ | `divider` | `color`, `opacity` | A rule; `w`, `h` (e.g. h 2). |
+ | `shape` | `kind` (`rect`/`ellipse`), `fill`, `stroke`, `strokeWidth` (1), `radius` (2), `opacity` | |
+-| `arrow` | `x1`, `y1`, `x2`, `y2`, `color` (`muted`/`tangerine`/`ruby`), `width` (2), `dashed`, `label` | Full-bleed: `x`/`y` ignored, endpoints are in props. |
++| `arrow` | `x1`, `y1`, `x2`, `y2`, `color` (`muted` gray / `tangerine` BlueDot / `ruby` red), `width` (2), `dashed`, `label` | Full-bleed: `x`/`y` ignored, endpoints are in props. |
+ | `image` | `src` (data: URI), `fit` (`contain`/`cover`/`fill`), `radius`, `alt` | Needs `w`, `h`. The gadget frame only shows `data:` images, so inline the bytes. |
+ | `svg` | `markup`, `fit` (`contain`/`stretch`), `background` | Needs `w`, `h`. Markup is sanitised (scripts, `on*`, external links removed). |
+ | `logo` | `src`, `alt`, `scale`, `align` (`right` pins the right edge); without `src`: `text` wordmark, `variant` (`dark` black / `light` white) | A logo on one slide; see "Logos". |
+ 
+ **Title highlights.** `highlight` is a comma-separated list of exact,
+ case-sensitive phrases (`"Workers, 38%"`); each occurrence in the title is
+-recoloured: the accent `#FF5F2E` on white or dark slides, otherwise black or
+-white, whichever reads against the background. Only use it when asked.
++recoloured: BlueDot `#00ADE8` where it reads against the background, otherwise
++black or white, whichever reads. Only use it when asked.
+ 
+ **Slide background**: `{ color, inset, dotGrid, coverOrange }`. `color` is
+ the fill; `inset: true` draws a cream rounded panel 16px in from the edges
+@@ -224,8 +234,9 @@ editor.
+   shapes, dividers, arrows and the brand bar become native objects; images
+   and the cover art are pictures; SVG embeds with a PNG fallback that an open
+   editor renders (until one has, the fallback is transparent). Each slide's
+-  first `title` is its title placeholder. Text uses Arial metrics, so it may
+-  wrap slightly differently than in the browser. A deck of more than 10,000
++  first `title` is its title placeholder. Text is set in Montserrat, Inter and
++  JetBrains Mono (a machine without them substitutes another face) but measured
++  with Arial metrics, so it may wrap slightly differently than in the browser. A deck of more than 10,000
+   blocks in all can't be exported.
+ - **HTML** and **PDF**, rendered in the browser: every slide at 1200 × 675
+   without the app chrome, exact to the screen.
 diff --git a/files/client.ts b/files/client.ts
-index 4b639fd..848cab3 100644
+index 4b639fd..4ec3399 100644
 --- a/files/client.ts
 +++ b/files/client.ts
 @@ -36,6 +36,8 @@ import { highlightColorFor } from "./lib/highlight.ts";
@@ -55,6 +443,17 @@ index 4b639fd..848cab3 100644
            textTransform: "uppercase",
            whiteSpace: "nowrap"
          }
+@@ -422,8 +435,8 @@ var COMPONENTS: Record<string, ComponentDef> = {
+       props: {
+         text: "[TITLE]",
+         fontSize: 58,
+-        weight: 700,
+-        color: "#FFFFFF",
++        weight: 600,
++        color: NESS.ink,
+         letterSpacing: "-0.03em",
+         highlight: "",
+         lineHeight: 1.1
 @@ -463,6 +476,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
      render(props, ctx) {
        const e = el("div", {
@@ -63,6 +462,27 @@ index 4b639fd..848cab3 100644
            fontSize: (props.fontSize || 42) + "px",
            fontWeight: String(props.weight || 900),
            letterSpacing: props.letterSpacing || "-0.04em",
+@@ -511,9 +525,9 @@ var COMPONENTS: Record<string, ComponentDef> = {
+       props: {
+         text: "[SUBTITLE]",
+         fontSize: 17,
+-        color: "#FFFFFF",
++        color: NESS.ink2,
+         lineHeight: 1.5,
+-        weight: 600
++        weight: 400
+       }
+     }),
+     resizableW: true,
+@@ -567,7 +581,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
+       props: {
+         text: "Text",
+         fontSize: 19,
+-        color: "#000000",
++        color: NESS.ink2,
+         weight: 400,
+         family: "sans",
+         align: "left",
 @@ -592,6 +606,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
          type: "select",
          options: ["left", "center", "right"]
@@ -71,7 +491,7 @@ index 4b639fd..848cab3 100644
        {
          key: "weight",
          label: "Weight",
-@@ -612,7 +627,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -612,10 +627,10 @@ var COMPONENTS: Record<string, ComponentDef> = {
      render(props, ctx) {
        const e = el("div", {
          style: {
@@ -79,7 +499,11 @@ index 4b639fd..848cab3 100644
 +          fontFamily: props.family === "head" ? HEAD : props.family === "mono" ? MONO : FONT,
            fontSize: (props.fontSize || 19) + "px",
            fontWeight: String(props.weight || 400),
-           color: props.color || "#000000",
+-          color: props.color || "#000000",
++          color: props.color || NESS.ink2,
+           textAlign: props.align || "left",
+           lineHeight: String(props.lineHeight || 1.6),
+           // Not in Format, but agents set it and the exporter honours it.
 @@ -675,8 +690,8 @@ var COMPONENTS: Record<string, ComponentDef> = {
              height: "6px",
              flex: "0 0 6px",
@@ -192,6 +616,20 @@ index 4b639fd..848cab3 100644
              fontWeight: "400",
              lineHeight: "1.45"
            }
+@@ -906,10 +927,10 @@ var COMPONENTS: Record<string, ComponentDef> = {
+       h: 200,
+       props: {
+         kind: "rect",
+-        fill: "#FFFFFF",
+-        stroke: "#E5E5E5",
++        fill: NESS.surf,
++        stroke: NESS.line,
+         strokeWidth: 1,
+-        radius: 2,
++        radius: 0,
+         opacity: 1
+       }
+     }),
 @@ -1191,10 +1212,10 @@ var COMPONENTS: Record<string, ComponentDef> = {
      ],
      render(props) {
@@ -251,6 +689,20 @@ index 4b639fd..848cab3 100644
  /** One quick action in the floating bar, by the kind of control it shows. */
  type QuickSpec =
    | { key: string; kind: "size"; single?: false }
+diff --git a/files/lib/highlight.ts b/files/lib/highlight.ts
+index 3d42639..81e1cc8 100644
+--- a/files/lib/highlight.ts
++++ b/files/lib/highlight.ts
+@@ -9,7 +9,8 @@
+ import type { SlideBackground } from "./protocol.ts";
+ 
+ /** The theme accent highlights use where it reads well (client `C.orange`). */
+-export const HIGHLIGHT_ACCENT = "#FF5F2E";
++// ness.: BlueDot, o destaque do NESS Design System.
++export const HIGHLIGHT_ACCENT = "#00ADE8";
+ /** The least contrast a highlight keeps with the background behind it. */
+ const MIN_HIGHLIGHT_CONTRAST = 3;
+ 
 diff --git a/files/lib/layouts.ts b/files/lib/layouts.ts
 index 4b73574..6875e99 100644
 --- a/files/lib/layouts.ts
@@ -947,7 +1399,7 @@ index 383878b..39e15c3 100644
  /**
   * A slide as handed to `addSlide`: the server fills in a missing id and mints ids for blocks that
 diff --git a/files/server.ts b/files/server.ts
-index 3864d5f..dac8ced 100644
+index 3864d5f..c3981d6 100644
 --- a/files/server.ts
 +++ b/files/server.ts
 @@ -12,7 +12,7 @@
@@ -959,3 +1411,21 @@ index 3864d5f..dac8ced 100644
  import { COVER_ORANGE_PNG } from "./lib/branding.ts";
  import { pptxAssets } from "./lib/brand-rasters.ts";
  import { deckToSlidesPptx } from "./lib/pptx.ts";
+@@ -1166,14 +1166,15 @@ function newBlankSlide(): Slide {
+ }
+ // An `addSlide` input as the slide to store. A layout builds the slide from
+ // its template. Otherwise the slide is flat (no inset surface) unless the
+-// input asks for the inset, and white unless it names a colour, so a slide an
++// input asks for the inset, and near-black (ness.) unless it names a colour, so a slide an
+ // agent assembles itself never picks up the inset surface by accident. (The
+ // renderer draws the inset whenever `inset` isn't false, which stored slides
+ // rely on, so the default is set here rather than changed there.)
+ function slideFromInput(input: SlideInput): LooseSlide {
+   const { layout, ...rest } = input;
+   const background = isPlainObject(rest.background) ? rest.background : {};
+-  if (layout === undefined) return { ...rest, background: { color: "#FFFFFF", ...background, inset: background.inset === true } };
++  // ness.: um slide montado sem layout nasce no fundo near-black do NESS Design System.
++  if (layout === undefined) return { ...rest, background: { color: "#0E1116", ...background, inset: background.inset === true } };
+   if (!isSlideLayout(layout)) throw new Error(`Unknown slide layout ${JSON.stringify(layout)}: use one of ${SLIDE_LAYOUT_IDS.join(", ")}.`);
+   if (rest.blocks !== undefined) throw new Error("addSlide takes a layout or blocks, not both: build the slide from the layout, then edit or add blocks.");
+   const template = SLIDE_LAYOUTS[layout]();

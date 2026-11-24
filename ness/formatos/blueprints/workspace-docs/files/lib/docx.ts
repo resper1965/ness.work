@@ -76,7 +76,7 @@ interface Typeface {
 // The three shared typefaces (settings.font), mirroring the editor's
 // --doc-font / --doc-size / --doc-lh: the editor's 16px sans body maps to 11pt.
 const TYPEFACES: Record<DocFont, Typeface> = {
-  sans: { font: "Inter", size: 10.5, line: 1.6 },
+  sans: { font: "Inter", size: 11, line: 1.65 },
   serif: { font: "Georgia", size: 12, line: 1.6 },
   mono: { font: "Courier New", size: 10, line: 1.7 },
 };
@@ -793,7 +793,8 @@ class DocxWriter {
     const cy = Math.max(1, Math.round(heightTwips * EMU_PER_TWIP));
     // The page's 6px corner radius, as roundRect's adjustment: a share of the
     // shorter side, where 50000 is a half.
-    const radius = 6 / this.measurePx * CONTENT_TWIPS * EMU_PER_TWIP;
+    // ness.: cantos retos (NESS Design System, raio zero).
+    const radius = 0 / this.measurePx * CONTENT_TWIPS * EMU_PER_TWIP;
     const corner = Math.min(50000, Math.round(radius / Math.min(cx, cy) * 100000));
     const id = this.#nextDrawing++;
     const alt = xmlAttr((node.attrs.alt ?? "").slice(0, 1000));
