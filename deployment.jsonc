@@ -50,6 +50,19 @@
   // Reference: docs/customization.md#optional-gatekeepers
   "gatekeepers": {
     "mcp": { "name": "agentos-gk-mcp" },
+
+    // Microsoft 365 (Outlook, Agenda, SharePoint/OneDrive) com OAuth delegado por pessoa.
+    // Secrets (CLIENT_ID, CLIENT_SECRET, MICROSOFT_TENANT_ID): `pnpm cf-os secrets microsoft`.
+    // Envio de e-mail e convites a participantes nunca são autoaprovados (regra do upstream).
+    "microsoft": {
+      "name": "agentos-gk-microsoft",
+      "vars": {
+        "MICROSOFT_OUTLOOK_ACCESS": "send",
+        "MICROSOFT_CALENDAR_ACCESS": "schedule",
+        // Não pedido nesta fase: só leitura até decidirmos o escopo de arquivos.
+        "MICROSOFT_SHAREPOINT_ACCESS": "read"
+      }
+    },
     // ness.: o portal MCP da Cloudflare (Zero Trust > MCP Portals, "ness.work") com as fontes de
     // conhecimento da ness. (ness.know; o ness.brain entra pelo mesmo caminho). Ligado para todos em
     // /admin; cada pessoa autoriza cada fonte com o próprio login, e o Access decide quem vê qual.
