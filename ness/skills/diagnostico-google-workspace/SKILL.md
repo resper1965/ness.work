@@ -29,7 +29,7 @@ SSO de terceiros (Entra, Okta): falha no IdP aparece no IdP, não no Google; con
 
 ## Drive e compartilhamento
 
-Acesso negado: confira o dono do arquivo, se ele está num Drive compartilhado (permissão é do drive, não do arquivo) e se a política de compartilhamento externo da OU do usuário permite. Histórico do arquivo: Relatórios → Auditoria → **Eventos de registro do Drive**.
+Acesso negado: confira o dono do arquivo e os detalhes de compartilhamento do próprio item. Em Drive compartilhado, o acesso vem de três lugares: ser membro do drive, um compartilhamento direto do arquivo ou da pasta com quem não é membro, e pastas com acesso limitado, que restringem até membros. Confira os três, além da política de compartilhamento externo da OU do usuário e da configuração do drive compartilhado. Histórico do arquivo: Relatórios → Auditoria → **Eventos de registro do Drive**.
 
 Arquivo "sumiu": evento de exclusão no log do Drive; restauração pelo console (Usuários → o usuário → Restaurar dados, até 25 dias após esvaziar a lixeira).
 

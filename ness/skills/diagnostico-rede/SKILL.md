@@ -18,10 +18,10 @@ Antes de testar, fixe o escopo com o técnico, uma pergunta por vez: quem é afe
 | Interface e endereço | `ipconfig /all` | `ip a` / `ifconfig` | IP da faixa certa, máscara, gateway, DNS | 169.254.x.x = sem DHCP; IP de outra faixa = VLAN errada ou DHCP intruso |
 | Gateway | `ping <gateway>` | `ping -c 20 <gateway>` | 0% de perda, < 5 ms em LAN | Perda aqui = cabo, porta, Wi-Fi ou switch |
 | Saída IP | `ping 1.1.1.1` | `ping -c 20 1.1.1.1` | Responde | Gateway ok e isto falha = firewall, NAT ou link |
-| DNS | `nslookup exemplo.com` e `nslookup exemplo.com 1.1.1.1` | `dig exemplo.com` e `dig @1.1.1.1 exemplo.com` | Mesmo resultado nos dois | Só o público resolve = DNS interno; nenhum = porta 53 bloqueada |
+| DNS | `nslookup exemplo.com` e `nslookup exemplo.com 1.1.1.1` | `dig exemplo.com` e `dig @1.1.1.1 exemplo.com` | Os dois respondem. Endereços diferentes são normais em DNS interno (split DNS), CDN e balanceamento; só exija igualdade quando a zona não usa nada disso | Só o público responde = DNS interno; nenhum responde = porta 53 bloqueada; interno responde endereço antigo = registro ou cache desatualizado |
 | Caminho | `tracert -d <destino>` | `traceroute -n <destino>` / `mtr -rwc 100 <destino>` | Saltos sem perda crescente | Perda que começa num salto e segue até o fim = problema naquele salto |
 | Porta | `Test-NetConnection <host> -Port 443` | `nc -vz <host> 443` | TcpTestSucceeded / succeeded | Recusado = serviço parado; tempo esgotado = firewall |
-| MTU | `ping -f -l 1472 <destino>` | `ping -M do -s 1472 <destino>` | Responde | Falha só com pacote grande = MTU/MSS (comum em VPN e PPPoE) |
+| MTU | `ping -f -l 1472 <destino>` | Linux: `ping -M do -s 1472 <destino>`; macOS: `ping -D -s 1472 <destino>` | Responde | Falha só com pacote grande = MTU/MSS (comum em VPN e PPPoE) |
 
 Perda só em um salto intermediário que **não** continua nos seguintes é limitação de ICMP do roteador, não problema.
 

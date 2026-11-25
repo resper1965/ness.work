@@ -20,8 +20,8 @@ Erros comuns: dois registros SPF (invalida os dois); SPF com mais de 10 `include
 
 Peça o cabeçalho completo (Outlook: Arquivo → Propriedades → Cabeçalhos da Internet; Gmail: ⋮ → Mostrar original). Leia nesta ordem:
 
-1. `Authentication-Results`: `spf=`, `dkim=`, `dmarc=`. Qualquer `fail` explica rejeição ou spam.
-2. **Alinhamento:** o domínio do `From:` precisa casar com o domínio do SPF (`smtp.mailfrom`) ou da assinatura DKIM (`header.d`) para o DMARC passar.
+1. `Authentication-Results` do servidor que recebeu (o de cima, do seu provedor): comece pelo `dmarc=`. O DMARC passa quando **pelo menos um** entre SPF e DKIM passa **e** está alinhado; um `spf=fail` ou um `dkim=fail` isolado não explica nada se o `dmarc=pass` (é comum em mensagem encaminhada ou com mais de uma assinatura).
+2. **Alinhamento:** o domínio do `From:` precisa casar com o domínio do SPF (`smtp.mailfrom`) ou da assinatura DKIM (`header.d`). `dmarc=fail` com SPF e DKIM `pass` indica desalinhamento: o remetente assina ou envia com outro domínio.
 3. Os `Received:` de baixo para cima mostram o caminho e onde houve atraso.
 4. Pontuação de spam: `X-MS-Exchange-Organization-SCL` (M365; 5 ou mais = lixo) ou `X-Forefront-Antispam-Report`.
 
