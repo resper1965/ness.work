@@ -23,6 +23,7 @@
 - [ ] Conexões → adicionar servidor MCP `https://m365.ness.com.br/mcp`; entrar com a conta Microsoft.
 - [ ] Conversa nova: "minhas tarefas" → lista sem pedir aprovação.
 - [ ] "crie uma tarefa no To Do: teste ness.work" → deve parar na aprovação; aprovar e conferir a tarefa no To Do.
+- [ ] "procure nos meus contatos <um nome que exista>" → devolve o contato sem pedir aprovação (valida `Contacts.ReadWrite` e a busca de contatos).
 
 ### Task 2: Faxina
 - [ ] Conexões do ness.work: remover a conexão manual com `brain.ness.com.br` (o brain fica só pelo portal "ness. (conhecimento)").
@@ -30,9 +31,11 @@
 
 ### Task 3: Política do portal MCP
 - [ ] Zero Trust → Access → Applications → `ness.work` (`mcp.ness.com.br`): conferir a aba Policies.
-- [ ] Se vazia, ligar a política reutilizável "colaboradores ness" e salvar.
+- [ ] Antes de ligar, abrir a política reutilizável "colaboradores ness" e conferir as regras: deve ter um único Include, "Emails ending in `ness.com.br`", sem Require/Exclude inesperados (conferido em 25/11: 1 regra, Allow, já usada por `nessbrain`, `nessknow` e pela autorização do ness.know).
+- [ ] Se a aba Policies estiver vazia, ligar "colaboradores ness" e salvar.
+- [ ] Testar: uma conta @ness.com.br conecta "ness. (conhecimento)" no ness.work; uma conta de fora do domínio é barrada no login do portal.
 
 ### Task 4: Anúncio no Teams
 - [ ] Conferir na tela os rótulos citados no post ("Conexões", "Enviar", "Agendar").
 - [ ] Acrescentar Planner/To Do/contatos ao post.
-- [ ] Publicar no canal geral da equipe da ness. pelo conector Microsoft 365.
+- [ ] Publicar no canal geral (General) da equipe "ness." do Teams. Quem publica é o operador, ou o agente desta sessão de trabalho pelo conector Microsoft 365 do claude.ai, que tem envio para canais. O ness.work não tem ferramenta de Teams: nem o gatekeeper oficial (e-mail, agenda, arquivos) nem o `m365-mcp` (Planner, To Do, contatos). Feito em 25/11.
