@@ -101,7 +101,7 @@ uppercase for labels (`family: "mono"`). Background `#0E1116`, surfaces
 `#16191F`, rules `rgba(255,255,255,0.14)`, text `#F1F5F9` / `#CBD5E1` /
 `#94A3B8`, BlueDot `#00ADE8` as the only accent, `#10B981` ok, `#F59E0B`
 warning, `#F87171` gap. No gradients, no rounded corners, no shadows.
-Headlines are specific assertions, at most two lines; body copy roughly 40–60
+The word `ness.` in any text is drawn as the brand (Montserrat 500, the dot in BlueDot) on screen and in PowerPoint: write it lowercase, as `ness.`, and never style it by hand. Headlines are specific assertions, at most two lines; body copy roughly 40–60
 words with space on the right. Cards and boxes are surfaces with a thin rule
 and a 2px side stripe in their tone (`neutral` BlueDot, `tangerine` green,
 `ruby` red).

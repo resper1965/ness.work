@@ -1,5 +1,29 @@
+diff --git a/__tests__/marca.test.ts b/__tests__/marca.test.ts
+new file mode 100644
+index 0000000..7558787
+--- /dev/null
++++ b/__tests__/marca.test.ts
+@@ -0,0 +1,18 @@
++import { describe, expect, it } from "vitest";
++import { marcaHtml, trechosMarca } from "../files/lib/marca.ts";
++
++describe("ness.: a marca no texto", () => {
++  it("separa só a palavra \"ness.\"", () => {
++    expect(trechosMarca("A ness. e a trustness. com n.secops em ness.com.br")).toEqual([
++      { texto: "A ", marca: false }, { texto: "ness.", marca: true }, { texto: " e a trustness. com n.secops em ness.com.br", marca: false },
++    ]);
++    expect(trechosMarca("ness.")).toEqual([{ texto: "ness.", marca: true }]);
++    expect(trechosMarca("sem marca")).toEqual([{ texto: "sem marca", marca: false }]);
++  });
++
++  it("escapa o resto e põe o ponto em BlueDot", () => {
++    const html = marcaHtml("<b>ness.</b>");
++    expect(html).toContain("&lt;b&gt;");
++    expect(html).toMatch(/<span class="ness-marca" style="[^"]*font-weight:500[^"]*">ness<span style="color:#00ADE8">\.<\/span><\/span>/);
++  });
++});
 diff --git a/__tests__/pptx.server.test.ts b/__tests__/pptx.server.test.ts
-index 768d4bd..f10ef4d 100644
+index 768d4bd..3f5e663 100644
 --- a/__tests__/pptx.server.test.ts
 +++ b/__tests__/pptx.server.test.ts
 @@ -134,7 +134,7 @@ describe("Slides PowerPoint export", () => {
@@ -11,7 +35,7 @@ index 768d4bd..f10ef4d 100644
      expect(shapeNamed(xml, "Block 7 box surface")).toContain("<a:custDash>");
      expect(shapeNamed(xml, "Block 10 shape")).toContain('prst="ellipse"');
      expect(shapeNamed(xml, "Block 11 image")).toContain("<p:blipFill>");
-@@ -364,6 +364,26 @@ describe("Slides PowerPoint logos", () => {
+@@ -364,6 +364,40 @@ describe("Slides PowerPoint logos", () => {
        slide([{ id: "t", type: "title", x: 35, y: 76, w: 984, props: { text: "Latency fell 38%", highlight: "38%", color: "#000000" } }]),
      ] });
      expect(runs(shapeNamed(text(parts, "ppt/slides/slide1.xml"), "Block 2 title"))).toEqual([["LeBron", "000000"], [" is the GOAT", "FFFFFF"]]);
@@ -37,6 +61,20 @@ index 768d4bd..f10ef4d 100644
 +      expect(view.getUint32(8, true)).toBe(0x00020001);
 +      expect(view.getUint16(34, true)).toBe(0x504c);
 +    }
++  });
++});
++
++describe("ness.: a marca no texto", () => {
++  it("desenha \"ness.\" em Montserrat 500 com o ponto em BlueDot, e deixa trustness. e n.secops como estão", async () => {
++    const parts = await exportDeck({ slides: [slide([{ id: "t", type: "text", x: 40, y: 40, w: 600, props: { text: "A ness. opera o n.secops; a trustness. audita." } }])] });
++    const xml = text(parts, "ppt/slides/slide1.xml");
++    const runs = [...xml.matchAll(/<a:r><a:rPr ([^>]*)>(.*?)<\/a:rPr><a:t xml:space="preserve">(.*?)<\/a:t><\/a:r>/g)].map((m) => ({ attrs: m[1], props: m[2], text: m[3] }));
++    const at = runs.findIndex((r) => r.text === "ness");
++    expect(runs[at]!.attrs).toContain('b="0"');
++    expect(runs[at]!.props).toContain('<a:latin typeface="Montserrat"/>');
++    expect(runs[at + 1]).toMatchObject({ text: "." });
++    expect(runs[at + 1]!.props).toContain('<a:srgbClr val="00ADE8"');
++    expect(xml).toContain("n.secops; a trustness. audita.");
    });
  });
 diff --git a/__tests__/server.test.ts b/__tests__/server.test.ts
@@ -245,7 +283,7 @@ index d84ee74..f10fd2b 100644
      "id": "presentation",
      "noun": "Slides",
 diff --git a/files/README.md b/files/README.md
-index cc43f4b..4b900b9 100644
+index cc43f4b..0534bc1 100644
 --- a/files/README.md
 +++ b/files/README.md
 @@ -1,7 +1,7 @@
@@ -345,7 +383,7 @@ index cc43f4b..4b900b9 100644
 +`#16191F`, rules `rgba(255,255,255,0.14)`, text `#F1F5F9` / `#CBD5E1` /
 +`#94A3B8`, BlueDot `#00ADE8` as the only accent, `#10B981` ok, `#F59E0B`
 +warning, `#F87171` gap. No gradients, no rounded corners, no shadows.
-+Headlines are specific assertions, at most two lines; body copy roughly 40–60
++The word `ness.` in any text is drawn as the brand (Montserrat 500, the dot in BlueDot) on screen and in PowerPoint: write it lowercase, as `ness.`, and never style it by hand. Headlines are specific assertions, at most two lines; body copy roughly 40–60
 +words with space on the right. Cards and boxes are surfaces with a thin rule
 +and a 2px side stripe in their tone (`neutral` BlueDot, `tangerine` green,
 +`ruby` red).
@@ -407,19 +445,20 @@ index cc43f4b..4b900b9 100644
  - **HTML** and **PDF**, rendered in the browser: every slide at 1200 × 675
    without the app chrome, exact to the screen.
 diff --git a/files/client.ts b/files/client.ts
-index 4b639fd..4ec3399 100644
+index 4b639fd..d4f9737 100644
 --- a/files/client.ts
 +++ b/files/client.ts
-@@ -36,6 +36,8 @@ import { highlightColorFor } from "./lib/highlight.ts";
+@@ -36,6 +36,9 @@ import { highlightColorFor } from "./lib/highlight.ts";
  import { clampView, isFit, stepScale, wheelPixels, wheelZoomFactor, zoomAt, type ZoomView } from "./lib/zoom.ts";
  import { parseSvgMarkup, scopeSvgIds, svgArtworkSize } from "./lib/svg.ts";
  import { SLIDE_LAYOUTS, type SlideTemplate } from "./lib/layouts.ts";
 +import { NESS } from "./lib/ness.ts";
++import { marcaHtml } from "./lib/marca.ts";
 +import { FONTES_CSS } from "./lib/ness-ativos.ts";
  import { LOGO_IMAGE_TYPES, LOGO_POSITIONS, deckLogoBox, isEmptyLogoSlot, logoAlt, logoBlockBox, logoShowsOn, newLogoBlockBox } from "./lib/logo.ts";
  
  // The bindings the Workshop's iframe bootstrap defines before this module runs: the RPC stub to
-@@ -290,12 +292,22 @@ var toneFill: Record<string, string> = {
+@@ -290,12 +293,22 @@ var toneFill: Record<string, string> = {
    ruby: "#FFFFFF"
  };
  var toneColor: Record<string, string> = {
@@ -447,7 +486,7 @@ index 4b639fd..4ec3399 100644
  var isSlidesExport = ["html", "pdf"].includes((globalThis as { gadgetExportFormatId?: string }).gadgetExportFormatId ?? "");
  if (isSlidesExport) document.documentElement.classList.add("slides-export");
  
-@@ -313,11 +325,12 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -313,11 +326,12 @@ var COMPONENTS: Record<string, ComponentDef> = {
      render(props, ctx) {
        return ctx.inlineText(el("div", {
          style: {
@@ -463,7 +502,7 @@ index 4b639fd..4ec3399 100644
            textTransform: "uppercase",
            whiteSpace: "nowrap"
          }
-@@ -422,8 +435,8 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -422,8 +436,8 @@ var COMPONENTS: Record<string, ComponentDef> = {
        props: {
          text: "[TITLE]",
          fontSize: 58,
@@ -474,7 +513,7 @@ index 4b639fd..4ec3399 100644
          letterSpacing: "-0.03em",
          highlight: "",
          lineHeight: 1.1
-@@ -463,6 +476,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -463,6 +477,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
      render(props, ctx) {
        const e = el("div", {
          style: {
@@ -482,7 +521,16 @@ index 4b639fd..4ec3399 100644
            fontSize: (props.fontSize || 42) + "px",
            fontWeight: String(props.weight || 900),
            letterSpacing: props.letterSpacing || "-0.04em",
-@@ -511,9 +525,9 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -493,7 +508,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
+         for (let i = 0; i < txt.length; ) {
+           let j = i;
+           while (j < txt.length && marks[j] === marks[i]) j++;
+-          const piece = escapeHtml(txt.slice(i, j));
++          const piece = marcaHtml(txt.slice(i, j)); // ness.: a marca no meio do título
+           html += marks[i] ? `<span class="hl" style="color:${accent}">${piece}</span>` : piece;
+           i = j;
+         }
+@@ -511,9 +526,9 @@ var COMPONENTS: Record<string, ComponentDef> = {
        props: {
          text: "[SUBTITLE]",
          fontSize: 17,
@@ -494,7 +542,7 @@ index 4b639fd..4ec3399 100644
        }
      }),
      resizableW: true,
-@@ -567,7 +581,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -567,7 +582,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
        props: {
          text: "Text",
          fontSize: 19,
@@ -503,7 +551,7 @@ index 4b639fd..4ec3399 100644
          weight: 400,
          family: "sans",
          align: "left",
-@@ -592,6 +606,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -592,6 +607,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
          type: "select",
          options: ["left", "center", "right"]
        },
@@ -511,7 +559,7 @@ index 4b639fd..4ec3399 100644
        {
          key: "weight",
          label: "Weight",
-@@ -612,10 +627,10 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -612,10 +628,10 @@ var COMPONENTS: Record<string, ComponentDef> = {
      render(props, ctx) {
        const e = el("div", {
          style: {
@@ -524,7 +572,7 @@ index 4b639fd..4ec3399 100644
            textAlign: props.align || "left",
            lineHeight: String(props.lineHeight || 1.6),
            // Not in Format, but agents set it and the exporter honours it.
-@@ -675,8 +690,8 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -675,8 +691,8 @@ var COMPONENTS: Record<string, ComponentDef> = {
              height: "6px",
              flex: "0 0 6px",
              marginTop: compact ? "7px" : "8px",
@@ -535,7 +583,7 @@ index 4b639fd..4ec3399 100644
            }
          }));
          const textEl = el("div", {
-@@ -687,7 +702,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -687,7 +703,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
              fontSize: size + "px",
              fontWeight: "400",
              lineHeight: compact ? "1.45" : "1.5",
@@ -544,7 +592,7 @@ index 4b639fd..4ec3399 100644
              textAlign: "left"
            }
          });
-@@ -731,9 +746,10 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -731,9 +747,10 @@ var COMPONENTS: Record<string, ComponentDef> = {
            height: "100%",
            boxSizing: "border-box",
            padding: "20px",
@@ -558,7 +606,7 @@ index 4b639fd..4ec3399 100644
            boxShadow: "none",
            display: "flex",
            flexDirection: "column",
-@@ -744,10 +760,11 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -744,10 +761,11 @@ var COMPONENTS: Record<string, ComponentDef> = {
        if (props.eyebrow || ctx.editing) {
          wrap.appendChild(ctx.inlineText(el("div", {
            style: {
@@ -573,7 +621,7 @@ index 4b639fd..4ec3399 100644
              textTransform: "uppercase",
              lineHeight: "1.2"
            }
-@@ -755,18 +772,19 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -755,18 +773,19 @@ var COMPONENTS: Record<string, ComponentDef> = {
        }
        wrap.appendChild(ctx.inlineText(el("div", {
          style: {
@@ -595,7 +643,7 @@ index 4b639fd..4ec3399 100644
            fontWeight: "400",
            whiteSpace: "pre-wrap"
          }
-@@ -799,10 +817,11 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -799,10 +818,11 @@ var COMPONENTS: Record<string, ComponentDef> = {
            width: "100%",
            height: "100%",
            boxSizing: "border-box",
@@ -611,7 +659,7 @@ index 4b639fd..4ec3399 100644
            display: "flex",
            flexDirection: "column",
            justifyContent: "center"
-@@ -810,10 +829,11 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -810,10 +830,11 @@ var COMPONENTS: Record<string, ComponentDef> = {
        });
        wrap.appendChild(ctx.inlineText(el("div", {
          style: {
@@ -624,7 +672,7 @@ index 4b639fd..4ec3399 100644
            lineHeight: "1.3"
          }
        }), "title", null, "Box title"));
-@@ -821,8 +841,9 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -821,8 +842,9 @@ var COMPONENTS: Record<string, ComponentDef> = {
          wrap.appendChild(ctx.inlineText(el("div", {
            style: {
              marginTop: "6px",
@@ -636,7 +684,7 @@ index 4b639fd..4ec3399 100644
              fontWeight: "400",
              lineHeight: "1.45"
            }
-@@ -906,10 +927,10 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -906,10 +928,10 @@ var COMPONENTS: Record<string, ComponentDef> = {
        h: 200,
        props: {
          kind: "rect",
@@ -650,7 +698,7 @@ index 4b639fd..4ec3399 100644
          opacity: 1
        }
      }),
-@@ -1191,10 +1212,10 @@ var COMPONENTS: Record<string, ComponentDef> = {
+@@ -1191,10 +1213,10 @@ var COMPONENTS: Record<string, ComponentDef> = {
      ],
      render(props) {
        const color = ({
@@ -665,7 +713,7 @@ index 4b639fd..4ec3399 100644
        const svgEl = svg("svg", {
          width: 1200,
          height: 675,
-@@ -1309,10 +1330,13 @@ function isBrandBarMarkup(raw: string): boolean {
+@@ -1309,10 +1331,13 @@ function isBrandBarMarkup(raw: string): boolean {
  /* ═════════════════════════ 3. Slide templates ════════════════════════════ */
  // The "New slide" menu: each layout (lib/layouts.ts) as the editor offers it.
  const LAYOUTS: Array<{ key: SlideLayout; label: string; sub: string; icon: string }> = [
@@ -683,7 +731,30 @@ index 4b639fd..4ec3399 100644
  ];
  function DotGrid(opacity = 0.42): HTMLDivElement {
    return el("div", {
-@@ -4089,16 +4113,16 @@ var TYPE_SCALE = [10, 12, 14, 16, 17, 19, 22, 24, 28, 32, 36, 42, 48, 58, 64, 72
+@@ -1836,6 +1861,8 @@ function saveKey(e: KeyboardEvent): boolean {
+ }
+ function bindInlineText<E extends HTMLElement>(elem: E, slide: Slide, block: Block, propKey: string, transform?: ((raw: PropValue) => string) | null, placeholder = "Type here"): E {
+   const raw = (block.props || {})[propKey] ?? "";
++  // ness.: sem outra marcação, o texto ainda desenha a marca "ness." (lib/marca.ts), editando ou não.
++  transform ??= (value) => marcaHtml(String(value));
+   if (inlineEditing(block)) {
+     // The value last saved: the field can outlive a save while another field
+     // is being edited (renderWhenIdle), and typing the old text back must save.
+@@ -1972,7 +1999,12 @@ function bindInlineList<E extends HTMLElement>(list: E, slide: Slide, block: Blo
+   // Items past the limit aren't shown; keep them when saving.
+   const hidden = allItems.slice(maxItems);
+   if (!inlineEditing(block)) {
+-    for (const item of items) list.appendChild(makeRow(item).row);
++    for (const item of items) {
++      const { row, textEl } = makeRow(item);
++      // ness.: a marca "ness." nos itens (lib/marca.ts); editando, o item fica em texto puro.
++      if (item.includes("ness.")) textEl.innerHTML = marcaHtml(item);
++      list.appendChild(row);
++    }
+     return list;
+   }
+   const fields = () => [...list.querySelectorAll<HTMLElement>(".inline-edit")];
+@@ -4089,16 +4121,16 @@ var TYPE_SCALE = [10, 12, 14, 16, 17, 19, 22, 24, 28, 32, 36, 42, 48, 58, 64, 72
  /** A named colour, as the quick-action palettes list them. */
  type NamedColor = [name: string, color: string];
  var TEXT_COLORS: NamedColor[] = [
@@ -1038,6 +1109,40 @@ index 4b73574..6875e99 100644
    twoColumn: makeTwoColumnSlide,
    fourColumn: makeFourColumnSlide,
  };
+diff --git a/files/lib/marca.ts b/files/lib/marca.ts
+new file mode 100644
+index 0000000..665eda9
+--- /dev/null
++++ b/files/lib/marca.ts
+@@ -0,0 +1,28 @@
++// ness.: a marca "ness." no meio do texto segue o NESS Design System em todo lugar em que aparece: Montserrat
++// 500, tracking -0,015em, sempre em caixa baixa, e o ponto em BlueDot (#00ADE8). Vale para "ness." como
++// palavra; "trustness." e "n.secops" ficam como estão. O editor (client.ts) e o PowerPoint (pptx-base.ts)
++// usam o mesmo recorte, então os dois sempre concordam.
++
++/** Os trechos de `texto`, com `marca: true` onde está a palavra "ness." (sem o ponto final, que vem à parte). */
++export function trechosMarca(texto: string): Array<{ texto: string; marca: boolean }> {
++  const trechos: Array<{ texto: string; marca: boolean }> = [];
++  const re = /(?<![\p{L}\p{N}_.@/-])ness\.(?![\p{L}\p{N}])/gu;
++  let fim = 0;
++  for (const m of texto.matchAll(re)) {
++    if (m.index > fim) trechos.push({ texto: texto.slice(fim, m.index), marca: false });
++    trechos.push({ texto: "ness.", marca: true });
++    fim = m.index + m[0].length;
++  }
++  if (fim < texto.length) trechos.push({ texto: texto.slice(fim), marca: false });
++  return trechos;
++}
++
++const ESCAPE: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
++const escapar = (s: string) => s.replace(/[&<>"']/g, (c) => ESCAPE[c]!);
++
++/** O HTML de `texto` com a marca desenhada; sem "ness." no texto, só o texto escapado. */
++export function marcaHtml(texto: string): string {
++  return trechosMarca(texto).map((t) => t.marca
++    ? `<span class="ness-marca" style="font-family:'Montserrat','Inter',sans-serif;font-weight:500;letter-spacing:-0.015em;text-transform:none">ness<span style="color:#00ADE8">.</span></span>`
++    : escapar(t.texto)).join("");
++}
 diff --git a/files/lib/ness.ts b/files/lib/ness.ts
 new file mode 100644
 index 0000000..f500f24
@@ -1062,12 +1167,13 @@ index 0000000..f500f24
 +  bad: "#F87171",
 +} as const;
 diff --git a/files/lib/pptx-base.ts b/files/lib/pptx-base.ts
-index e8ed5ee..c725edc 100644
+index e8ed5ee..5560115 100644
 --- a/files/lib/pptx-base.ts
 +++ b/files/lib/pptx-base.ts
-@@ -1,4 +1,25 @@
+@@ -1,4 +1,26 @@
  import { createZip, crc32, type ZipEntry } from "@gadgets/bundled-blueprints/libraries/zip/server";
 +import { FONTES_EOT } from "./ness-ativos.ts";
++import { trechosMarca } from "./marca.ts";
 +
 +// ness.: Inter, Montserrat e JetBrains Mono vão embutidas no .pptx (EOT, o formato dos .fntdata do
 +// PowerPoint), para o arquivo abrir com as fontes do NESS Design System numa máquina que não as tem.
@@ -1091,7 +1197,7 @@ index e8ed5ee..c725edc 100644
  
  type Scalar = string | number | boolean | undefined;
  interface PreparedProps {
-@@ -18,6 +39,8 @@ interface PreparedProps {
+@@ -18,6 +40,8 @@ interface PreparedProps {
    body?: string;
    dashed?: unknown;
    tone?: string;
@@ -1100,7 +1206,7 @@ index e8ed5ee..c725edc 100644
    opacity?: Scalar;
    kind?: string;
    fill?: string;
-@@ -142,6 +165,8 @@ interface ShapeOptions {
+@@ -142,6 +166,8 @@ interface ShapeOptions {
  }
  
  interface TextStyle {
@@ -1109,7 +1215,7 @@ index e8ed5ee..c725edc 100644
    fontSize: unknown;
    weight: unknown;
    letterSpacing?: unknown;
-@@ -253,6 +278,19 @@ const MAX_IMAGE_DIMENSION = 8192;
+@@ -253,6 +279,19 @@ const MAX_IMAGE_DIMENSION = 8192;
  const MAX_IMAGE_PIXELS = 16777216;
  const MAX_TOTAL_IMAGE_PIXELS = 67108864;
  
@@ -1129,7 +1235,7 @@ index e8ed5ee..c725edc 100644
  const COLORS = {
    page: "F5F1EB",
    surface: "FFF9EF",
-@@ -562,7 +600,7 @@ function runProperties(style: TextStyle, colorOverride?: Color | null): string {
+@@ -562,7 +601,7 @@ function runProperties(style: TextStyle, colorOverride?: Color | null): string {
    const spacing = letterSpacingHundredths(style.letterSpacing, cssNumber(style.fontSize, 12, 1, 1000));
    const spacingXml = spacing ? ` spc="${spacing}"` : "";
    return `lang="en-US" sz="${size}"${bold}${spacingXml} dirty="0"` +
@@ -1138,7 +1244,7 @@ index e8ed5ee..c725edc 100644
  }
  
  // Comma-delimited, trimmed, deduplicated in order. Bounded by delimited entries while scanning, so
-@@ -645,8 +683,8 @@ function* paragraphXml(text: string, style: TextStyle, options: ParagraphOptions
+@@ -645,8 +684,8 @@ function* paragraphXml(text: string, style: TextStyle, options: ParagraphOptions
      properties += `<a:spcAft><a:spcPts val="${Math.round(options.spacingAfter * PX_TO_POINT * 100)}"/></a:spcAft>`;
    }
    if (options.bullet) {
@@ -1149,7 +1255,32 @@ index e8ed5ee..c725edc 100644
    } else {
      properties += "<a:buNone/>";
    }
-@@ -1226,18 +1264,23 @@ function prepareBlock(source: unknown, slideIndex: number, blockIndex: number, l
+@@ -664,9 +703,21 @@ function* paragraphXml(text: string, style: TextStyle, options: ParagraphOptions
+     const lineBreak = end === text.length || text.charCodeAt(end) === 10;
+     if (!lineBreak && (!marks || marks[end] === marks[start])) continue;
+     if (end > start) {
+-      yield marks && marks[start] ? highlightRun : normalRun;
+-      yield* escapedText(text.slice(start, end));
+-      yield "</a:t></a:r>";
++      const destaque = Boolean(marks && marks[start]);
++      // ness.: a marca "ness." vira dois runs (lib/marca.ts): "ness" em Montserrat 500 na cor do trecho e
++      // o ponto em BlueDot, como no editor.
++      for (const trecho of trechosMarca(text.slice(start, end))) {
++        if (!trecho.marca) {
++          yield destaque ? highlightRun : normalRun;
++          yield* escapedText(trecho.texto);
++          yield "</a:t></a:r>";
++          continue;
++        }
++        const marca = {...style, font: "head", weight: 500, letterSpacing: "-0.015em"};
++        const cor = destaque ? options.highlightColor || HIGHLIGHT_COLOR : null;
++        yield `<a:r><a:rPr ${runProperties(marca, cor)}</a:rPr><a:t xml:space="preserve">ness</a:t></a:r>`;
++        yield `<a:r><a:rPr ${runProperties(marca, parseColor("#" + NESS_HEX.bd))}</a:rPr><a:t xml:space="preserve">.</a:t></a:r>`;
++      }
+     }
+     // The break carries the run's size: a bare <a:br/> takes the master's 18pt, which sets an empty
+     // line (a blank line between paragraphs of text) at the wrong height.
+@@ -1226,18 +1277,23 @@ function prepareBlock(source: unknown, slideIndex: number, blockIndex: number, l
        props.color = text("color");
        props.align = text("align");
        props.lineHeight = sourceScalar(propsSource.lineHeight);
@@ -1174,7 +1305,7 @@ index e8ed5ee..c725edc 100644
        props.title = inlineText("title");
        props.body = inlineText("body");
        props.dashed = propsSource.dashed;
-@@ -1513,11 +1556,11 @@ function* coverArtworkXml(state: RenderState): Generator<string, void, unknown>
+@@ -1513,11 +1569,11 @@ function* coverArtworkXml(state: RenderState): Generator<string, void, unknown>
  
  function* renderSectionLabel(state: RenderState, block: PreparedBlock, name: string): Generator<string, void, unknown> {
    const props = block.props;
@@ -1189,7 +1320,7 @@ index e8ed5ee..c725edc 100644
    };
    yield* textShapeXml(state, name, box, style, {text: props.text ?? ""}, {wrap: false});
  }
-@@ -1557,10 +1600,11 @@ function* renderTitle(state: RenderState, block: PreparedBlock, name: string): G
+@@ -1557,10 +1613,11 @@ function* renderTitle(state: RenderState, block: PreparedBlock, name: string): G
      : sizePixels(block.h, fontSize * lineHeight);
    yield* textShapeXml(state, name, blockBox({...block, w: width, h: height}, width, height), {
      fontSize,
@@ -1202,7 +1333,7 @@ index e8ed5ee..c725edc 100644
      align: "left",
    }, {text, highlightMarks: props.highlightMarks, highlightColor: parseColor(props.highlightColor)}, {autofit: block.h == null && "grow", title: takeTitle(state)});
  }
-@@ -1576,7 +1620,7 @@ function* renderSubtitle(state: RenderState, block: PreparedBlock, name: string)
+@@ -1576,7 +1633,7 @@ function* renderSubtitle(state: RenderState, block: PreparedBlock, name: string)
      fontSize,
      weight: props.weight || 500,
      lineHeight,
@@ -1211,7 +1342,7 @@ index e8ed5ee..c725edc 100644
      align: "left",
    }, {text}, {autofit: block.h == null && "grow"});
  }
-@@ -1592,11 +1636,12 @@ function* renderText(state: RenderState, block: PreparedBlock, name: string): Ge
+@@ -1592,11 +1649,12 @@ function* renderText(state: RenderState, block: PreparedBlock, name: string): Ge
      ? estimateTextHeight(text, width, fontSize, lineHeight, weight, props.letterSpacing)
      : sizePixels(block.h, fontSize * lineHeight);
    yield* textShapeXml(state, name, blockBox({...block, w: width, h: height}, width, height), {
@@ -1225,7 +1356,7 @@ index e8ed5ee..c725edc 100644
      align: ["left", "center", "right"].includes(props.align ?? "") ? props.align : "left",
    }, {text}, {autofit: block.h == null && "grow"});
  }
-@@ -1620,7 +1665,7 @@ function* renderBullets(state: RenderState, block: PreparedBlock, name: string):
+@@ -1620,7 +1678,7 @@ function* renderBullets(state: RenderState, block: PreparedBlock, name: string):
    if (items.length) height -= gap;
    if (block.h != null) height = sizePixels(block.h, height);
    yield* textShapeXml(state, name, blockBox({...block, w: width, h: height}, width, height), {
@@ -1234,7 +1365,7 @@ index e8ed5ee..c725edc 100644
    }, {items, spacingAfter: gap}, {autofit: block.h == null && "grow"});
  }
  
-@@ -1643,33 +1688,33 @@ function* renderCard(state: RenderState, block: PreparedBlock, name: string): Ge
+@@ -1643,33 +1701,33 @@ function* renderCard(state: RenderState, block: PreparedBlock, name: string): Ge
    const padding = Math.min(20, outer.height / 2);
    const surface = strokeInset(outer, 1);
    yield shapeXml(state, `${name} surface`, boxFromPixels(surface.x, surface.y, surface.width, surface.height), {
@@ -1277,7 +1408,7 @@ index e8ed5ee..c725edc 100644
    }, {text: props.body}, {autofit: shrinkScale(props.body ?? "", width, bodyRoom, 15, 1.5, 400)});
  }
  
-@@ -1689,40 +1734,49 @@ function* renderBox(state: RenderState, block: PreparedBlock, name: string): Gen
+@@ -1689,40 +1747,49 @@ function* renderBox(state: RenderState, block: PreparedBlock, name: string): Gen
      props.body ? maxContentWidth(props.body, 14, 400) : 0));
    const width = Math.max(1, outerWidth - 28);
    const titleHeight = props.title ? estimateTextHeight(props.title, width, 16, 1.3, 600, "-0.02em", 0) : 0;
@@ -1342,7 +1473,7 @@ index e8ed5ee..c725edc 100644
    // An intrinsic inline-block in the browser: the wrapper's w/h size only the wrapper around it.
    // CSS letter-spacing also follows the last letter. Height: 5px padding around one line at the
    // inherited line-height. The text is centred: a roundRect's text area is inset by its corners,
-@@ -1880,10 +1934,10 @@ function* renderImage(state: RenderState, block: PreparedBlock, name: string): G
+@@ -1880,10 +1947,10 @@ function* renderImage(state: RenderState, block: PreparedBlock, name: string): G
  
  function arrowColor(value: unknown): Color | null {
    return parseColor(({
@@ -1357,7 +1488,7 @@ index e8ed5ee..c725edc 100644
  }
  
  function connectorXml(state: RenderState, name: string, x1: number, y1: number, x2: number, y2: number, color: Color | null, width: number, dashed: boolean, arrow = true): string {
-@@ -2014,7 +2068,7 @@ function* renderBlockXml(state: RenderState, block: PreparedBlock, blockIndex: n
+@@ -2014,7 +2081,7 @@ function* renderBlockXml(state: RenderState, block: PreparedBlock, blockIndex: n
  }
  
  function slideBackgroundXml(background: PreparedBackground | null): string {
@@ -1366,7 +1497,7 @@ index e8ed5ee..c725edc 100644
    return `<p:bg><p:bgPr>${solidFill(color)}<a:effectLst/></p:bgPr></p:bg>`;
  }
  
-@@ -2055,6 +2109,7 @@ function contentTypes(slides: PreparedSlide[], media: Media[]): string {
+@@ -2055,6 +2122,7 @@ function contentTypes(slides: PreparedSlide[], media: Media[]): string {
    let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="${CONTENT_TYPE_NS}">` +
      '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
      '<Default Extension="xml" ContentType="application/xml"/>';
@@ -1374,7 +1505,7 @@ index e8ed5ee..c725edc 100644
    const mediaTypes = new Map(media.map(item => [item.extension, item.mime]));
    for (const [extension, mime] of mediaTypes) {
      xml += `<Default Extension="${extension}" ContentType="${mime}"/>`;
-@@ -2109,14 +2164,14 @@ function appProperties(slideCount: number): string {
+@@ -2109,14 +2177,14 @@ function appProperties(slideCount: number): string {
  }
  
  function presentationXml(slideCount: number): string {
@@ -1392,7 +1523,7 @@ index e8ed5ee..c725edc 100644
      '</a:defPPr></p:defaultTextStyle></p:presentation>';
  }
  
-@@ -2129,6 +2184,9 @@ function presentationRelationships(slideCount: number): string {
+@@ -2129,6 +2197,9 @@ function presentationRelationships(slideCount: number): string {
    for (let i = 1; i <= slideCount; ++i) {
      xml += `<Relationship Id="rId${i + 4}" Type="${REL_NS}/slide" Target="slides/slide${i}.xml"/>`;
    }
@@ -1402,7 +1533,7 @@ index e8ed5ee..c725edc 100644
    return xml + "</Relationships>";
  }
  
-@@ -2152,7 +2210,7 @@ function tableStyles() {
+@@ -2152,7 +2223,7 @@ function tableStyles() {
  function masterTextStyle(size: number, bold: boolean, color: string): string {
    return `<a:lvl1pPr algn="l"><a:defRPr lang="en-US" sz="${size}" b="${bold ? 1 : 0}">` +
      `<a:solidFill><a:srgbClr val="${color}"/></a:solidFill>` +
@@ -1411,7 +1542,7 @@ index e8ed5ee..c725edc 100644
  }
  
  function slideMaster() {
-@@ -2160,9 +2218,9 @@ function slideMaster() {
+@@ -2160,9 +2231,9 @@ function slideMaster() {
      `<p:cSld name="Blank Master"><p:spTree>${groupShapeXml()}</p:spTree></p:cSld>` +
      '<p:clrMap accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" bg1="lt1" bg2="lt2" folHlink="folHlink" hlink="hlink" tx1="dk1" tx2="dk2"/>' +
      '<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>' +
@@ -1424,7 +1555,7 @@ index e8ed5ee..c725edc 100644
  }
  
  function slideMasterRelationships() {
-@@ -2190,15 +2248,15 @@ function themeXml() {
+@@ -2190,15 +2261,15 @@ function themeXml() {
      '<a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>' +
      '<a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>' +
      '<a:dk2><a:srgbClr val="2B0B05"/></a:dk2><a:lt2><a:srgbClr val="F5F1EB"/></a:lt2>' +
@@ -1445,7 +1576,7 @@ index e8ed5ee..c725edc 100644
      '<a:font script="Jpan" typeface="Arial"/><a:font script="Hang" typeface="Arial"/>' +
      '<a:font script="Hans" typeface="Arial"/><a:font script="Hant" typeface="Arial"/></a:minorFont>' +
      '</a:fontScheme><a:fmtScheme name="Workspace">' +
-@@ -2240,6 +2298,7 @@ export function deckToPptx(deck: unknown, adaptBlock?: PptxBlockAdapter): Readab
+@@ -2240,6 +2311,7 @@ export function deckToPptx(deck: unknown, adaptBlock?: PptxBlockAdapter): Readab
      {name: "ppt/slideLayouts/slideLayout1.xml", data: slideLayout()},
      {name: "ppt/slideLayouts/_rels/slideLayout1.xml.rels", data: slideLayoutRelationships()},
      {name: "ppt/theme/theme1.xml", data: themeXml()},

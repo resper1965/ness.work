@@ -1,5 +1,6 @@
 import { createZip, crc32, type ZipEntry } from "@gadgets/bundled-blueprints/libraries/zip/server";
 import { FONTES_EOT } from "./ness-ativos.ts";
+import { trechosMarca } from "./marca.ts";
 
 // ness.: Inter, Montserrat e JetBrains Mono vão embutidas no .pptx (EOT, o formato dos .fntdata do
 // PowerPoint), para o arquivo abrir com as fontes do NESS Design System numa máquina que não as tem.
@@ -702,9 +703,21 @@ function* paragraphXml(text: string, style: TextStyle, options: ParagraphOptions
     const lineBreak = end === text.length || text.charCodeAt(end) === 10;
     if (!lineBreak && (!marks || marks[end] === marks[start])) continue;
     if (end > start) {
-      yield marks && marks[start] ? highlightRun : normalRun;
-      yield* escapedText(text.slice(start, end));
-      yield "</a:t></a:r>";
+      const destaque = Boolean(marks && marks[start]);
+      // ness.: a marca "ness." vira dois runs (lib/marca.ts): "ness" em Montserrat 500 na cor do trecho e
+      // o ponto em BlueDot, como no editor.
+      for (const trecho of trechosMarca(text.slice(start, end))) {
+        if (!trecho.marca) {
+          yield destaque ? highlightRun : normalRun;
+          yield* escapedText(trecho.texto);
+          yield "</a:t></a:r>";
+          continue;
+        }
+        const marca = {...style, font: "head", weight: 500, letterSpacing: "-0.015em"};
+        const cor = destaque ? options.highlightColor || HIGHLIGHT_COLOR : null;
+        yield `<a:r><a:rPr ${runProperties(marca, cor)}</a:rPr><a:t xml:space="preserve">ness</a:t></a:r>`;
+        yield `<a:r><a:rPr ${runProperties(marca, parseColor("#" + NESS_HEX.bd))}</a:rPr><a:t xml:space="preserve">.</a:t></a:r>`;
+      }
     }
     // The break carries the run's size: a bare <a:br/> takes the master's 18pt, which sets an empty
     // line (a blank line between paragraphs of text) at the wrong height.
