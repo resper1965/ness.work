@@ -18,8 +18,8 @@
 	],
 	"vars": {
 		"REDIRECT_PERMITIDO": "https://work.ness.com.br/gatekeeper/mcp/",
-		// Object ID do grupo do PMO no Entra. Vazio: ninguém cria nem atribui tarefas.
-		"PMO_GROUP_ID": ""
+		// Object ID do grupo do PMO no Entra ("ness. Heads"). Vazio: ninguém cria nem atribui tarefas.
+		"PMO_GROUP_ID": "fc9ca1d7-37b3-4877-8544-9b7e536da227"
 	},
 	// Sem id: o Wrangler cria os dois no primeiro deploy e grava o id aqui.
 	"kv_namespaces": [
