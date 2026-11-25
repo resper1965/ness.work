@@ -2,6 +2,15 @@
 // title e aria-label) pela tradução abaixo, e repete quando o React redesenha. Texto fora da tabela fica em inglês.
 // Conteúdo de conversa, código e campos de digitação nunca são tocados.
 // ponytail: dicionário de textos exatos do upstream | limite: texto novo ou alterado no Cloudflare OS volta a aparecer em inglês; frase montada com variável só traduz a parte fixa | gatilho: atualização do Cloudflare OS (rodar de novo a extração e completar a tabela) | dono: resper@ness.com.br
+// Raciocínio do agente oculto por padrão: o Cloudflare OS guarda a escolha de cada pessoa em localStorage
+// ("showThinkingTraces") e, sem escolha, mostra. Aqui só se grava "false" quando a pessoa ainda não escolheu;
+// quem ligar em "Mostrar raciocínio" no menu do campo de mensagem continua vendo.
+try {
+  if (window.localStorage.getItem('showThinkingTraces') === null) window.localStorage.setItem('showThinkingTraces', 'false');
+} catch {
+  // navegação privada ou armazenamento bloqueado: fica o padrão do Cloudflare OS
+}
+
 (() => {
   const PT = {
     // Navegação e ações gerais
@@ -23,7 +32,7 @@
     'Name': 'Nome', 'Status': 'Status', 'Owner': 'Dono', 'Created': 'Criado', 'Time': 'Hora', 'Actions': 'Ações',
     'All': 'Todos', 'Available': 'Disponível', 'Enabled': 'Ativado', 'Disabled': 'Desativado', 'Connected': 'Conectado',
     'Pending': 'Pendente', 'Approved': 'Aprovado', 'Denied': 'Negado', 'Deleted': 'Excluído', 'Stopped': 'Parado',
-    'Working': 'Trabalhando', 'Thinking': 'Pensando', 'Live': 'Ao vivo', 'Draft': 'Rascunho', 'Unread': 'Não lido',
+    'Working': 'Trabalhando', 'Thinking': 'Pensando', 'Show thinking': 'Mostrar raciocínio', 'Hide thinking': 'Ocultar raciocínio', 'Live': 'Ao vivo', 'Draft': 'Rascunho', 'Unread': 'Não lido',
     'Error': 'Erro', 'Loading...': 'Carregando...', 'Searching…': 'Buscando…', 'Setting up...': 'Configurando...',
     'Authenticating...': 'Autenticando...', 'Reconnecting…': 'Reconectando…', 'Compacting…': 'Compactando…',
     'Update available': 'Atualização disponível', 'Needs review': 'Precisa de revisão', 'Nothing to review': 'Nada a revisar',
