@@ -645,7 +645,41 @@ function parsedCellValue(value: string, formulaNames: Map<string, string>): Pars
   return {type: "text", value};
 }
 
-function cellXml(cell: PreparedCell, formulaNames: Map<string, string>): string {
+// ness.: a palavra "ness." em Montserrat (sem negrito, o mais perto do 500 do Design System) e o ponto em
+// BlueDot, como rich text na própria célula; o resto da célula segue a fonte dela (Inter). Mesmo recorte da
+// Apresentação (workspace-slides/files/lib/marca.ts). O Excel não embute fontes: sem Montserrat instalada,
+// ele usa a substituta, e o ponto continua em BlueDot.
+const MARCA = /(?<![\p{L}\p{N}_.@/-])ness\.(?![\p{L}\p{N}])/gu;
+const BLUEDOT = "FF00ADE8";
+
+function runFont(font: Font, name: string, bold = font.bold, color = font.color): string {
+  let xml = "<rPr>";
+  if (bold) xml += "<b/>";
+  if (font.italic) xml += "<i/>";
+  if (font.strike) xml += "<strike/>";
+  if (font.underline) xml += "<u/>";
+  xml += `<sz val="${font.size || 11}"/>`;
+  if (color) xml += `<color rgb="${color}"/>`;
+  return xml + `<rFont val="${name}"/><family val="2"/></rPr>`;
+}
+
+function textCellContent(value: string, font: Font): string {
+  if (!value.includes("ness.")) return `<t xml:space="preserve">${spreadsheetXml(value)}</t>`;
+  let xml = "";
+  let end = 0;
+  const plain = (text: string) => { if (text) xml += `<r>${runFont(font, "Inter")}<t xml:space="preserve">${spreadsheetXml(text)}</t></r>`; };
+  for (const match of value.matchAll(MARCA)) {
+    plain(value.slice(end, match.index));
+    xml += `<r>${runFont(font, "Montserrat", false)}<t xml:space="preserve">ness</t></r>`;
+    xml += `<r>${runFont(font, "Montserrat", false, BLUEDOT)}<t xml:space="preserve">.</t></r>`;
+    end = match.index + match[0].length;
+  }
+  if (!end) return `<t xml:space="preserve">${spreadsheetXml(value)}</t>`;
+  plain(value.slice(end));
+  return xml;
+}
+
+function cellXml(cell: PreparedCell, formulaNames: Map<string, string>, font: Font = {size: 11}): string {
   const style = cell.style ? ` s="${cell.style}"` : "";
   if (cell.value === "") return `<c r="${cell.reference}"${style}/>`;
   const parsed = parsedCellValue(cell.value, formulaNames);
@@ -653,7 +687,7 @@ function cellXml(cell: PreparedCell, formulaNames: Map<string, string>): string 
   if (parsed.type === "formula") return `<c r="${cell.reference}"${style}><f>${formulaXml(parsed.value)}</f></c>`;
   if (parsed.type === "boolean") return `<c r="${cell.reference}"${style} t="b"><v>${parsed.value ? 1 : 0}</v></c>`;
   if (parsed.type === "number") return `<c r="${cell.reference}"${style}><v>${String(parsed.value)}</v></c>`;
-  return `<c r="${cell.reference}"${style} t="inlineStr"><is><t xml:space="preserve">${spreadsheetXml(parsed.value)}</t></is></c>`;
+  return `<c r="${cell.reference}"${style} t="inlineStr"><is>${textCellContent(parsed.value, font)}</is></c>`;
 }
 
 function frozenPane(sheet: PreparedSheet): string {
@@ -683,7 +717,7 @@ function worksheetDimension(cells: PreparedCell[]): string {
   return first === last ? first : first + ":" + last;
 }
 
-function* worksheetXml(sheet: PreparedSheet, formulaNames: Map<string, string>): Generator<string, void, unknown> {
+function* worksheetXml(sheet: PreparedSheet, formulaNames: Map<string, string>, styles: Styles): Generator<string, void, unknown> {
   yield `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${MAIN_NS}">`;
   yield `<dimension ref="${worksheetDimension(sheet.cells)}"/>`;
   yield `<sheetViews><sheetView workbookViewId="0">${frozenPane(sheet)}</sheetView></sheetViews>`;
@@ -704,7 +738,10 @@ function* worksheetXml(sheet: PreparedSheet, formulaNames: Map<string, string>):
     const row = Math.min(cellRow, heightRow);
     const height = heightRow === row ? sheet.rowHeights[heightIndex++] : null;
     yield `<row r="${row}"${height ? ` ht="${height.value}" customHeight="1"` : ""}>`;
-    while (sheet.cells[cellIndex]?.row === row) yield cellXml(sheet.cells[cellIndex++], formulaNames);
+    while (sheet.cells[cellIndex]?.row === row) {
+      const cell = sheet.cells[cellIndex++];
+      yield cellXml(cell, formulaNames, styles.fonts[styles.cellFormats[cell.style]?.fontId ?? 0]);
+    }
     yield "</row>";
   }
   yield "</sheetData></worksheet>";
@@ -798,7 +835,7 @@ export function workbookToXlsx(document: SheetsDocument): ReadableStream<Uint8Ar
     {name: "xl/styles.xml", data: textStream(stylesXml(styles))},
     ...sheets.map((sheet, i) => ({
       name: `xl/worksheets/sheet${i + 1}.xml`,
-      data: textStream(worksheetXml(sheet, formulaNames)),
+      data: textStream(worksheetXml(sheet, formulaNames, styles)),
     })),
   ];
   return createZip(entries);

@@ -850,3 +850,21 @@ describe("Workspace Sheets export formats", () => {
     expect(cellXml(text(entries, "xl/worksheets/sheet1.xml"), "B2")).toContain("<f>SUM(A1:A2)</f>");
   });
 });
+
+describe("ness.: a marca no Excel", () => {
+  it("escreve a célula com a marca como rich text", async () => {
+    const {entries} = await readZip(exportXlsx({
+      sheetOrder: ["s"],
+      sheets: {s: sheet("S")},
+      cells: {s: {A1: cell("Proposta ness. 2026", {b: true, fs: 16}), A2: cell("trustness. e ness.com.br")}},
+    }));
+    const worksheet = text(entries, "xl/worksheets/sheet1.xml");
+    const a1 = cellXml(worksheet, "A1");
+    expect(a1).toContain('t="inlineStr"');
+    expect(a1).toMatch(/<r><rPr><b\/>[^]*?<rFont val="Inter"\/>[^]*?<t xml:space="preserve">Proposta <\/t><\/r>/);
+    expect(a1).toMatch(/<r><rPr>(?:(?!<b\/>)[^])*?<rFont val="Montserrat"\/>(?:(?!<\/rPr>)[^])*<\/rPr><t xml:space="preserve">ness<\/t><\/r>/);
+    expect(a1).toMatch(/<color rgb="FF00ADE8"\/>(?:(?!<\/rPr>)[^])*<\/rPr><t xml:space="preserve">\.<\/t>/);
+    expect(a1).toContain('<t xml:space="preserve"> 2026</t>');
+    expect(cellXml(worksheet, "A2")).toBe('<c r="A2" t="inlineStr"><is><t xml:space="preserve">trustness. e ness.com.br</t></is></c>');
+  });
+});

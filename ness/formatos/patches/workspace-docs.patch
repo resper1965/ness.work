@@ -1,5 +1,5 @@
 diff --git a/__tests__/docx.server.test.ts b/__tests__/docx.server.test.ts
-index 0307296..99e58e0 100644
+index 0307296..42ec561 100644
 --- a/__tests__/docx.server.test.ts
 +++ b/__tests__/docx.server.test.ts
 @@ -77,8 +77,14 @@ describe("Word export", () => {
@@ -118,7 +118,7 @@ index 0307296..99e58e0 100644
      expect(paragraph(document, "Intro")).toContain("<w:keepNext/>");
      expect(paragraph(document, "quoted item")).toContain("<w:keepNext/>");
      expect(paragraph(document, "Outro")).not.toContain("<w:keepNext/>");
-@@ -444,10 +452,25 @@ describe("Word export", () => {
+@@ -444,10 +452,37 @@ describe("Word export", () => {
        `<p><img src="${PNG}" style="width: .px;" width="0"></p>`,
      ]);
      expect(attr(paragraph(document, "huge"), /<w:sz w:val="(\d+)"/)).toBe("3276");
@@ -144,6 +144,55 @@ index 0307296..99e58e0 100644
 +    expect(ofuscada[16]).toBe(16 ^ 0x01);
 +    expect([...ofuscada.slice(32)]).toEqual([...fonte.slice(32)]);
 +    expect([...ofuscar(ofuscada, chave)]).toEqual([...fonte]);
++  });
++});
++
++describe("ness.: a marca no Word", () => {
++  it("escreve \"ness\" em Montserrat sem negrito e o ponto em BlueDot", async () => {
++    const { document } = await exportDocx(["<p>A <strong>ness.</strong> e a trustness.</p>", "<pre>ness.</pre>"]);
++    const p = paragraph(document, "A ness.");
++    expect(textOf(p)).toBe("A ness. e a trustness.");
++    expect(p).toMatch(/<w:r><w:rPr><w:rFonts w:ascii="Montserrat" w:hAnsi="Montserrat" w:cs="Montserrat"\/><w:b w:val="0"\/><w:bCs w:val="0"\/>[^]*?<\/w:rPr><w:t xml:space="preserve">ness<\/w:t><\/w:r>/);
++    expect(p).toMatch(/<w:color w:val="00ADE8"\/>[^]*?<w:t xml:space="preserve">\.<\/w:t>/);
++    const code = paragraph(document, "ness.");
++    expect(code).not.toContain("Montserrat");
++  });
++});
+diff --git a/__tests__/marca.test.ts b/__tests__/marca.test.ts
+new file mode 100644
+index 0000000..b00e161
+--- /dev/null
++++ b/__tests__/marca.test.ts
+@@ -0,0 +1,31 @@
++import { describe, expect, it } from "vitest";
++import { trechosMarca } from "../files/lib/marca.ts";
++import { aplicarMarca } from "../files/lib/marca-dom.ts";
++
++describe("ness.: a marca no texto", () => {
++  it("separa só a palavra \"ness.\"", () => {
++    expect(trechosMarca("A ness. e a trustness. com n.secops em ness.com.br")).toEqual([
++      { texto: "A ", marca: false }, { texto: "ness.", marca: true }, { texto: " e a trustness. com n.secops em ness.com.br", marca: false },
++    ]);
++    expect(trechosMarca("ness.")).toEqual([{ texto: "ness.", marca: true }]);
++    expect(trechosMarca("sem marca")).toEqual([{ texto: "sem marca", marca: false }]);
++  });
++
++  it("desenha a marca no HTML exportado, fora de código", () => {
++    const raiz = document.createElement("div");
++    raiz.innerHTML = "<h1>Proposta ness.</h1><p>A <b>ness.</b> e a trustness.</p><pre>ness.</pre><p><code>ness.</code></p>";
++    aplicarMarca(raiz);
++    const marcas = raiz.querySelectorAll(".ness-marca");
++    expect(marcas).toHaveLength(2);
++    for (const m of marcas) {
++      expect(m.textContent).toBe("ness.");
++      expect((m as HTMLElement).style.fontWeight).toBe("500");
++      expect((m.lastElementChild as HTMLElement).style.color).toMatch(/#00ade8|rgb\(0, 173, 232\)/i);
++    }
++    expect(raiz.querySelector("pre")!.innerHTML).toBe("ness.");
++    expect(raiz.querySelector("code")!.innerHTML).toBe("ness.");
++    expect(raiz.textContent).toBe("Proposta ness.A ness. e a trustness.ness.ness.");
++    aplicarMarca(raiz);
++    expect(raiz.querySelectorAll(".ness-marca")).toHaveLength(2);
 +  });
 +});
 diff --git a/blueprint.json b/blueprint.json
@@ -177,39 +226,43 @@ index 7fa07c5..d849806 100644
  ## Limitations
  
 diff --git a/files/client.ts b/files/client.ts
-index f6eef04..9d74b68 100644
+index f6eef04..f56a95c 100644
 --- a/files/client.ts
 +++ b/files/client.ts
-@@ -32,6 +32,7 @@ import type {
+@@ -32,6 +32,8 @@ import type {
  import { escapeHtml, inlineMarkdown, isCodeEditorHtml, normalizeHref, parseTsv, pipeCells, sanitizePastedHtml as sanitizeHtml, textToHtml, type PasteContext } from "./lib/paste.ts";
  import { MARK_TAGS, VOID_TAGS, mergeBlockHtml } from "./lib/merge.ts";
  import { codeFence } from "./lib/markdown.ts";
 +import { NESS_CAPA_CSS, NESS_CSS } from "./lib/ness-tema.ts";
++import { aplicarMarca } from "./lib/marca-dom.ts";
  import {
    type ElChild,
    DEFAULT_IMAGE_LIMITS,
-@@ -6538,6 +6539,8 @@ if (isExport) {
+@@ -6538,6 +6540,10 @@ if (isExport) {
      n.style.display = "none";
    }
  }
++// ness.: no PDF/HTML, a marca "ness." em Montserrat 500 com o ponto em BlueDot (lib/marca.ts).
++if (isExport) aplicarMarca(editor);
 +// ness.: o visual do NESS Design System, depois dos estilos de fábrica (lib/ness-tema.ts).
 +document.head.appendChild(el("style", { text: NESS_CSS + NESS_CAPA_CSS }));
  // Exports are captured when this script finishes: let web fonts land first so
  // the PDF's text matches the screen (but never wait more than 1.5 s).
  if (isExport && document.fonts) await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 1500))]);
 diff --git a/files/lib/docx.ts b/files/lib/docx.ts
-index 5976ad7..be783d6 100644
+index 5976ad7..674ddeb 100644
 --- a/files/lib/docx.ts
 +++ b/files/lib/docx.ts
-@@ -23,6 +23,7 @@
+@@ -23,6 +23,8 @@
  import { type ZipEntry, createZip } from "@gadgets/bundled-blueprints/libraries/zip/server";
  import { VOID_TAGS } from "./merge.ts";
  import type { DocFont, DocSettings } from "./protocol.ts";
 +import { fontesEmbutidas } from "./ness-fontes-word.ts";
++import { trechosMarca } from "./marca.ts";
  
  /* ═══════════════════════ 1. Limits, units & XML ════════════════════════════ */
  
-@@ -57,8 +58,8 @@ export interface DocxSource {
+@@ -57,8 +59,8 @@ export interface DocxSource {
  /** The document's shared presentation settings; any left out take their defaults. */
  export type DocxSettings = Partial<DocSettings>;
  
@@ -220,7 +273,7 @@ index 5976ad7..be783d6 100644
  const CONTENT_TWIPS = PAGE.w - 2 * PAGE.margin;
  const CONTENT_HEIGHT_TWIPS = PAGE.h - 2 * PAGE.margin;
  const EMU_PER_TWIP = 635;
-@@ -76,12 +77,14 @@ interface Typeface {
+@@ -76,12 +78,14 @@ interface Typeface {
  // The three shared typefaces (settings.font), mirroring the editor's
  // --doc-font / --doc-size / --doc-lh: the editor's 16px sans body maps to 11pt.
  const TYPEFACES: Record<DocFont, Typeface> = {
@@ -237,7 +290,7 @@ index 5976ad7..be783d6 100644
  
  // A CSS line-height as a Word "multiple" line rule (240ths of single
  // spacing). Word's single spacing is the font's own line height, about 1.15em
-@@ -89,16 +92,19 @@ const MONO_FONT = "Courier New";
+@@ -89,16 +93,19 @@ const MONO_FONT = "Courier New";
  const cssLine = (lineHeight: number): number => Math.round(lineHeight / 1.15 * 240);
  
  // Editor colours (light palette; exports always use it).
@@ -267,7 +320,27 @@ index 5976ad7..be783d6 100644
  const MARK_BG = "FBEFC4";
  
  // The editor's palette (client.ts PALETTE): [text, highlight] in the light theme.
-@@ -788,7 +794,8 @@ class DocxWriter {
+@@ -725,6 +732,19 @@ class DocxWriter {
+   }
+ 
+   #textRun(text: string, fmt: RunFormat, ctx: InlineContext): void {
++    // ness.: a palavra "ness." em Montserrat 500 (o "Regular" embutido) e o ponto em BlueDot; código fica como está.
++    if (!fmt.code && !ctx.pre && text.includes("ness.")) {
++      const trechos = trechosMarca(text);
++      if (trechos.some((t) => t.marca)) {
++        for (const t of trechos) {
++          if (!t.marca) { this.#textRun(t.texto, fmt, ctx); continue; }
++          const marca: RunFormat = { ...fmt, font: HEAD_FONT, bold: false, caps: false, smallCaps: false };
++          ctx.runs.push(`<w:r>${runProperties(marca)}<w:t xml:space="preserve">ness</w:t></w:r>`);
++          ctx.runs.push(`<w:r>${runProperties({ ...marca, color: ACCENT })}<w:t xml:space="preserve">.</w:t></w:r>`);
++        }
++        return;
++      }
++    }
+     let body = "";
+     for (const part of text.split(/(\t|\n)/)) {
+       if (part === "\t") body += "<w:tab/>";
+@@ -788,7 +808,8 @@ class DocxWriter {
      const cy = Math.max(1, Math.round(heightTwips * EMU_PER_TWIP));
      // The page's 6px corner radius, as roundRect's adjustment: a share of the
      // shorter side, where 50000 is a half.
@@ -277,7 +350,7 @@ index 5976ad7..be783d6 100644
      const corner = Math.min(50000, Math.round(radius / Math.min(cx, cy) * 100000));
      const id = this.#nextDrawing++;
      const alt = xmlAttr((node.attrs.alt ?? "").slice(0, 1000));
-@@ -911,7 +918,7 @@ class DocxWriter {
+@@ -911,7 +932,7 @@ class DocxWriter {
        // inside (a list item's hangs further out).
        const textX = Math.max(0, leftTwips) - (state.hanging ?? 0);
        const space = clampNumber(Math.round((textX - (state.quoteRule ?? 0)) / 20), 0, 31);
@@ -286,7 +359,7 @@ index 5976ad7..be783d6 100644
      }
      // A hanging marker (a number, bullet or to-do checkbox) is followed by a tab to the text's indent.
      if (state.hanging) pPr.push(`<w:tabs><w:tab w:val="left" w:pos="${leftTwips}"/></w:tabs>`);
-@@ -930,13 +937,27 @@ class DocxWriter {
+@@ -930,13 +951,27 @@ class DocxWriter {
      };
    }
  
@@ -315,22 +388,22 @@ index 5976ad7..be783d6 100644
        return;
      }
      switch (tag) {
-@@ -1107,8 +1128,13 @@ class DocxWriter {
+@@ -1107,8 +1142,13 @@ class DocxWriter {
          const options = this.#paragraphOptions(itemState, leading, { style: leadingHeading });
          const body = halfPoints(this.basePt * (state.style === "TableText" ? 0.9375 : 1));
          options.pPr += `<w:rPr><w:b w:val="0"/><w:bCs w:val="0"/><w:color w:val="${MUTED}"/><w:sz w:val="${body}"/><w:szCs w:val="${body}"/></w:rPr>`;
 +        options.prefix = (options.prefix ?? "") + this.#marca(leading.tag);
-+        this.#paragraph(leading.children, options);
+         this.#paragraph(leading.children, options);
+-      } else if (leading) this.#paragraph(leading.children, this.#paragraphOptions(itemState, leading, leadingHeading ? { style: leadingHeading } : {}));
 +      } else if (leading) {
 +        const options = this.#paragraphOptions(itemState, leading, leadingHeading ? { style: leadingHeading } : {});
 +        options.prefix = (options.prefix ?? "") + this.#marca(leading.tag);
-         this.#paragraph(leading.children, options);
--      } else if (leading) this.#paragraph(leading.children, this.#paragraphOptions(itemState, leading, leadingHeading ? { style: leadingHeading } : {}));
++        this.#paragraph(leading.children, options);
 +      }
        else this.#paragraph(inline, this.#paragraphOptions(itemState, null));
        for (const child of nested) {
          if (LIST_TAGS.test(child.tag)) {
-@@ -1414,7 +1440,7 @@ function stylesXml(face: Typeface): string {
+@@ -1414,7 +1454,7 @@ function stylesXml(face: Typeface): string {
    const fonts = (name: string): string => `<w:rFonts w:ascii="${name}" w:eastAsia="${name}" w:hAnsi="${name}" w:cs="${name}"/>`;
    const size = (halves: number): string => `<w:sz w:val="${halves}"/><w:szCs w:val="${halves}"/>`;
    const heading = (id: string, name: string, level: number, em: number, before: number, after: number, line: number): string =>
@@ -339,7 +412,7 @@ index 5976ad7..be783d6 100644
    const tableBorder = (side: string, sz: number, color: string): string => `<w:${side} w:val="single" w:sz="${sz}" w:space="0" w:color="${color}"/>`;
    const cellPadY = twips(0.42, base * 0.9375);
    return XML_HEAD + `<w:styles ${W_NS}>` +
-@@ -1425,10 +1451,10 @@ function stylesXml(face: Typeface): string {
+@@ -1425,10 +1465,10 @@ function stylesXml(face: Typeface): string {
      `<w:style w:type="character" w:default="1" w:styleId="DefaultParagraphFont"><w:name w:val="Default Paragraph Font"/><w:uiPriority w:val="1"/><w:semiHidden/><w:unhideWhenUsed/></w:style>` +
      `<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:uiPriority w:val="99"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>` +
      `<w:style w:type="numbering" w:default="1" w:styleId="NoList"><w:name w:val="No List"/><w:uiPriority w:val="99"/><w:semiHidden/><w:unhideWhenUsed/></w:style>` +
@@ -353,7 +426,7 @@ index 5976ad7..be783d6 100644
      `<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="29"/><w:qFormat/><w:pPr><w:keepLines/><w:spacing w:after="${twips(0.4)}"/><w:ind w:left="${twips(1)}"/></w:pPr><w:rPr><w:color w:val="${INK_2}"/></w:rPr></w:style>` +
      `<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:basedOn w:val="Normal"/><w:uiPriority w:val="34"/><w:qFormat/><w:pPr><w:spacing w:before="${twips(0.22)}" w:after="${twips(0.22)}"/><w:contextualSpacing/></w:pPr></w:style>` +
      `<w:style w:type="paragraph" w:styleId="TableList"><w:name w:val="Table List"/><w:basedOn w:val="TableText"/><w:uiPriority w:val="41"/><w:pPr><w:spacing w:before="${twips(0.22, base * 0.9375)}" w:after="${twips(0.22, base * 0.9375)}"/><w:contextualSpacing/></w:pPr></w:style>` +
-@@ -1441,8 +1467,8 @@ function stylesXml(face: Typeface): string {
+@@ -1441,8 +1481,8 @@ function stylesXml(face: Typeface): string {
      // Links look as on the page: the text colour, underlined in the accent.
      `<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:basedOn w:val="DefaultParagraphFont"/><w:uiPriority w:val="99"/><w:unhideWhenUsed/><w:rPr><w:u w:val="single" w:color="${ACCENT}"/></w:rPr></w:style>` +
      `<w:style w:type="character" w:styleId="InlineCode"><w:name w:val="Inline Code"/><w:basedOn w:val="DefaultParagraphFont"/><w:uiPriority w:val="39"/><w:qFormat/><w:rPr>${fonts(MONO_FONT)}<w:noProof/>${size(halfPoints(base * (mono ? 0.95 : 0.86)))}<w:shd w:val="clear" w:color="auto" w:fill="${INLINE_CODE_BG}"/></w:rPr></w:style>` +
@@ -364,7 +437,7 @@ index 5976ad7..be783d6 100644
      `</w:styles>`;
  }
  
-@@ -1467,7 +1493,7 @@ function numberingXml(lists: ListInstance[]): string {
+@@ -1467,7 +1507,7 @@ function numberingXml(lists: ListInstance[]): string {
      if (list.kind === "bullet" || list.kind === "check") {
        const below = ilvl - list.level;
        const bullet = below === 0 ? list.bullet ?? 0 : below > 0 ? Math.min(2, (list.ulDepth ?? 0) + below) : ilvl % 3;
@@ -373,7 +446,7 @@ index 5976ad7..be783d6 100644
      }
      const start = ilvl === list.level ? list.start : 1;
      const below = ilvl - list.level;
-@@ -1484,18 +1510,22 @@ function numberingXml(lists: ListInstance[]): string {
+@@ -1484,18 +1524,22 @@ function numberingXml(lists: ListInstance[]): string {
    return XML_HEAD + `<w:numbering ${W_NS}>${abstracts}${nums}</w:numbering>`;
  }
  
@@ -399,7 +472,7 @@ index 5976ad7..be783d6 100644
  }
  
  function coreXml(title: string, modified: number): string {
-@@ -1505,11 +1535,12 @@ function coreXml(title: string, modified: number): string {
+@@ -1505,11 +1549,12 @@ function coreXml(title: string, modified: number): string {
  
  const APP_XML = XML_HEAD + `<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>Docs</Application><DocSecurity>0</DocSecurity></Properties>`;
  
@@ -413,7 +486,7 @@ index 5976ad7..be783d6 100644
      `<Override PartName="/word/document.xml" ContentType="${word}.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="${word}.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="${word}.numbering+xml"/><Override PartName="/word/settings.xml" ContentType="${word}.settings+xml"/><Override PartName="/word/fontTable.xml" ContentType="${word}.fontTable+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`;
  }
  
-@@ -1559,11 +1590,12 @@ export function documentToDocx(source: DocxSource, settings: DocxSettings = {}):
+@@ -1559,11 +1604,12 @@ export function documentToDocx(source: DocxSource, settings: DocxSettings = {}):
    if (writer.out[0]!.startsWith("<w:p>")) writer.out[0] = paragraphWithSpacing(writer.out[0]!, { before: 0 });
    const body = writer.out.join("");
    const sectPr = `<w:sectPr><w:pgSz w:w="${PAGE.w}" w:h="${PAGE.h}"/><w:pgMar w:top="${PAGE.margin}" w:right="${PAGE.margin}" w:bottom="${PAGE.margin}" w:left="${PAGE.margin}" w:header="720" w:footer="720" w:gutter="0"/><w:cols w:space="720"/></w:sectPr>`;
@@ -428,7 +501,7 @@ index 5976ad7..be783d6 100644
      { name: "_rels/.rels", data: ROOT_RELS },
      { name: "docProps/core.xml", data: coreXml(documentTitle(fragments), Number(source.lastModified)) },
      { name: "docProps/app.xml", data: APP_XML },
-@@ -1571,7 +1603,9 @@ export function documentToDocx(source: DocxSource, settings: DocxSettings = {}):
+@@ -1571,7 +1617,9 @@ export function documentToDocx(source: DocxSource, settings: DocxSettings = {}):
      { name: "word/styles.xml", data: stylesXml(writer.face) },
      { name: "word/numbering.xml", data: numberingXml(writer.lists) },
      { name: "word/settings.xml", data: SETTINGS_XML },
@@ -439,6 +512,68 @@ index 5976ad7..be783d6 100644
      { name: "word/_rels/document.xml.rels", data: documentRelsXml(writer.relationships) },
      ...writer.media.map((m) => ({ name: "word/media/" + m.name, data: new Blob([m.bytes]).stream() })),
    ];
+diff --git a/files/lib/marca-dom.ts b/files/lib/marca-dom.ts
+new file mode 100644
+index 0000000..c86fbaa
+--- /dev/null
++++ b/files/lib/marca-dom.ts
+@@ -0,0 +1,31 @@
++// ness.: a marca no PDF/HTML exportado (só no navegador; o Word usa trechosMarca direto, em docx.ts).
++import { trechosMarca } from "./marca.ts";
++
++/** Desenha a marca em todo texto de `raiz` fora de código; chamar de novo não muda nada. */
++export function aplicarMarca(raiz: Element): void {
++  const doc = raiz.ownerDocument;
++  const walker = doc.createTreeWalker(raiz, 4 /* NodeFilter.SHOW_TEXT */);
++  const nos: Text[] = [];
++  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
++    const pai = n.parentElement;
++    if (!pai || pai.closest("pre, code, .ness-marca, script, style")) continue;
++    if (/ness\./.test(n.nodeValue ?? "")) nos.push(n as Text);
++  }
++  for (const no of nos) {
++    const trechos = trechosMarca(no.nodeValue ?? "");
++    if (!trechos.some((t) => t.marca)) continue;
++    const frag = doc.createDocumentFragment();
++    for (const t of trechos) {
++      if (!t.marca) { frag.append(t.texto); continue; }
++      const marca = doc.createElement("span");
++      marca.className = "ness-marca";
++      marca.style.cssText = "font-family:'Montserrat','Inter',sans-serif;font-weight:500;letter-spacing:-0.015em;text-transform:none";
++      const ponto = doc.createElement("span");
++      ponto.style.color = "#00ADE8";
++      ponto.textContent = ".";
++      marca.append("ness", ponto);
++      frag.append(marca);
++    }
++    no.replaceWith(frag);
++  }
++}
+diff --git a/files/lib/marca.ts b/files/lib/marca.ts
+new file mode 100644
+index 0000000..3859b3b
+--- /dev/null
++++ b/files/lib/marca.ts
+@@ -0,0 +1,19 @@
++// ness.: a marca "ness." no meio do texto segue o NESS Design System em todo lugar em que aparece: Montserrat
++// 500, tracking -0,015em, sempre em caixa baixa, e o ponto em BlueDot (#00ADE8). Vale para "ness." como
++// palavra; "trustness." e "n.secops" ficam como estão. Mesmo recorte da Apresentação
++// (workspace-slides/files/lib/marca.ts). Só as exportações a desenham: o PDF/HTML (aplicarMarca, em marca-dom.ts)
++// e o Word (docx.ts). O editor na tela não muda, porque decorar texto editável mexeria no conteúdo e no cursor.
++
++/** Os trechos de `texto`, com `marca: true` onde está a palavra "ness." (sem o ponto final, que vem à parte). */
++export function trechosMarca(texto: string): Array<{ texto: string; marca: boolean }> {
++  const trechos: Array<{ texto: string; marca: boolean }> = [];
++  const re = /(?<![\p{L}\p{N}_.@/-])ness\.(?![\p{L}\p{N}])/gu;
++  let fim = 0;
++  for (const m of texto.matchAll(re)) {
++    if (m.index > fim) trechos.push({ texto: texto.slice(fim, m.index), marca: false });
++    trechos.push({ texto: "ness.", marca: true });
++    fim = m.index + m[0].length;
++  }
++  if (fim < texto.length) trechos.push({ texto: texto.slice(fim), marca: false });
++  return trechos;
++}
 diff --git a/files/lib/ness-fontes-word.ts b/files/lib/ness-fontes-word.ts
 new file mode 100644
 index 0000000..08294ff
