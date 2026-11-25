@@ -48,10 +48,10 @@ export default async function (self, env, ctx) {
   const naoLidos = await todos(await o.listMessages({ unread: true, pageSize: 50 }), 50);
   // Busca (sintaxe do Outlook: from:, subject:, received>=AAAA-MM-DD)
   const doSergio = await todos(await o.search("from:sergio"), 20);
-  // Corpo completo de uma mensagem (Markdown seguro)
-  const corpo = await o.readMessage(doSergio[0].id);
   console.log(naoLidos.map(m => `${m.receivedAt ?? ""} ${m.from?.address} — ${m.subject}`).join("\n"));
-  console.log(corpo.markdown.slice(0, 3000));
+  // Corpo completo de uma mensagem (Markdown seguro); busca vazia é resultado normal
+  if (doSergio.length) console.log((await o.readMessage(doSergio[0].id)).markdown.slice(0, 3000));
+  else console.log("Nenhum e-mail encontrado na busca.");
 }
 ```
 
@@ -65,7 +65,8 @@ export default async function (self, env, ctx) {
 ```ts
 export default async function (self, env, ctx) {
   const c = env.CALENDAR; // o nome real vem do passo 2
-  const hoje = new Date().toISOString().slice(0, 10);
+  // Data de hoje no fuso da pessoa (toISOString daria a data UTC, que vira o dia às 21h)
+  const hoje = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const eventos = await todos(await c.listEvents({ start: hoje, end: hoje + "T23:59:59-03:00" }), 50);
   console.log(eventos.map(e => `${e.start} ${e.subject ?? "(ocupado)"} ${e.location ?? ""}`).join("\n"));
 }
@@ -100,7 +101,8 @@ export default async function (self, env, ctx) {
 | `todo_tarefas` | leitura | `lista_id?`, `incluir_concluidas?` |
 | `todo_criar_tarefa` | escrita | `titulo`, `prazo?`, `lista_id?` |
 | `contatos_buscar` | leitura | `termo` (começo de nome, sobrenome ou empresa) |
-| `contatos_criar` / `contatos_atualizar` | escrita | `nome`, `sobrenome?`, `email?`, `telefone?`, `empresa?`, `cargo?` |
+| `contatos_criar` | escrita | `nome`, `sobrenome?`, `email?`, `telefone?`, `empresa?`, `cargo?` |
+| `contatos_atualizar` | escrita | `contato_id` (de `contatos_buscar`), e só os campos que mudam: `nome?`, `sobrenome?`, `email?`, `telefone?`, `empresa?`, `cargo?` |
 
 - Escrita: mostre à pessoa o `message` do `pending`; depois `getActionResult(actionId)` dá `ok`, `rejected` ou `failed`.
 - Planner vazio sem erro quer dizer "nenhuma tarefa atribuída" ou plano premium (que o Graph pode não mostrar). Diga isso; não diga que a conexão falhou.
