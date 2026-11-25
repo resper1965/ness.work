@@ -49,7 +49,14 @@
   // `pnpm cf-os init` offers them; `pnpm cf-os secrets` sets their OAuth credentials.
   // Reference: docs/customization.md#optional-gatekeepers
   "gatekeepers": {
-    "mcp": { "name": "agentos-gk-mcp" }
+    "mcp": { "name": "agentos-gk-mcp" },
+    // ness.: o portal MCP da Cloudflare (Zero Trust > MCP Portals, "ness.work") com as fontes de
+    // conhecimento da ness. (ness.know; o ness.brain entra pelo mesmo caminho). Ligado para todos em
+    // /admin; cada pessoa autoriza cada fonte com o próprio login, e o Access decide quem vê qual.
+    "mcpportal": {
+      "name": "agentos-gk-mcpportal",
+      "vars": { "MCP_PORTAL_URL": "https://mcp.ness.com.br/mcp", "MCP_PORTAL_NAME": "ness. (conhecimento)" }
+    }
   },
 
   // This starter deploys Cloudflare Access mode. Cloudflare OS also supports built-in password
