@@ -62,6 +62,13 @@
         // Não pedido nesta fase: só leitura até decidirmos o escopo de arquivos.
         "MICROSOFT_SHAREPOINT_ACCESS": "read"
       }
+    },
+    // ness.: o portal MCP da Cloudflare (Zero Trust > MCP Portals, "ness.work") com as fontes de
+    // conhecimento da ness. (ness.know; o ness.brain entra pelo mesmo caminho). Ligado para todos em
+    // /admin; cada pessoa autoriza cada fonte com o próprio login, e o Access decide quem vê qual.
+    "mcpportal": {
+      "name": "agentos-gk-mcpportal",
+      "vars": { "MCP_PORTAL_URL": "https://mcp.ness.com.br/mcp", "MCP_PORTAL_NAME": "ness. (conhecimento)" }
     }
   },
 

@@ -1,0 +1,21 @@
+{
+  "blueprintId": "format.slides",
+  "title": "Apresentação ness.",
+  "description": "Apresentações no NESS Design System (capa, seção, conteúdo, dados, fluxo), editadas na tela ou por linguagem natural. Exporta para PowerPoint, HTML e PDF.",
+  "output": {
+    "id": "presentation",
+    "noun": "Slides",
+    "plural": "Slides",
+    "icon": "presentation"
+  },
+  "author": {
+    "type": "user",
+    "name": "Cloudflare",
+    "id": "agent@cloudflare.com"
+  },
+  "revision": 9,
+  "created": "2026-08-01T08:44:15.052Z",
+  "version": 10,
+  "lastUpdated": "2026-10-24T19:08:52.000Z",
+  "bindings": {}
+}

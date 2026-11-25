@@ -1,0 +1,22 @@
+{
+  "$comment": "output.id is generic (\"document\", not \"workspace-docs\") because it is the grouping key on the Outputs page: an org's own \"Contract\" blueprint declaring \"document\" files alongside this one.",
+  "blueprintId": "format.document",
+  "title": "Documento ness.",
+  "description": "Documentos no NESS Design System (A4, seções numeradas, destaque, tabela leve), editados na tela ou por linguagem natural. Exporta para Word, PDF, HTML e Markdown.",
+  "output": {
+    "id": "document",
+    "noun": "Doc",
+    "plural": "Docs",
+    "icon": "fileText"
+  },
+  "author": {
+    "type": "user",
+    "name": "Cloudflare",
+    "id": "agent@cloudflare.com"
+  },
+  "revision": 11,
+  "created": "2026-06-24T04:19:41.881Z",
+  "version": 10,
+  "lastUpdated": "2026-11-05T00:58:02.000Z",
+  "bindings": {}
+}
