@@ -5,7 +5,7 @@ Skills que o agente do ness.work carrega sob demanda. Ficam aqui como fonte; **o
 ## Instalar ou atualizar
 
 1. No ness.work: **Skills → coleção "ness"** (visibilidade "Everyone", para valer para todos).
-2. **Add → Upload skills** e escolha os `SKILL.md` (ou a pasta da skill). O upload cria ou substitui a skill com o nome do cabeçalho.
+2. **Add → Upload skills → Choose files** e escolha os arquivos `<nome-da-skill>.md` (cópia de cada `SKILL.md` com o nome da skill) ou **Choose folder** com esta pasta. Cada arquivo vira uma skill; confira nome e descrição na lista antes de **Upload**. Para atualizar uma skill que já existe, apague a antiga antes ou edite o `SKILL.md` dela.
 3. Teste numa conversa nova com um pedido que a skill cobre.
 
 Não digite o conteúdo no editor de Skills: ele acrescenta recuo e continua listas sozinho e corrompe o Markdown.
