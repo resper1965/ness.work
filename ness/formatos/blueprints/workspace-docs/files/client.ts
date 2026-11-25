@@ -33,6 +33,7 @@ import { escapeHtml, inlineMarkdown, isCodeEditorHtml, normalizeHref, parseTsv, 
 import { MARK_TAGS, VOID_TAGS, mergeBlockHtml } from "./lib/merge.ts";
 import { codeFence } from "./lib/markdown.ts";
 import { NESS_CAPA_CSS, NESS_CSS } from "./lib/ness-tema.ts";
+import { aplicarMarca } from "./lib/marca-dom.ts";
 import {
   type ElChild,
   DEFAULT_IMAGE_LIMITS,
@@ -6539,6 +6540,8 @@ if (isExport) {
     n.style.display = "none";
   }
 }
+// ness.: no PDF/HTML, a marca "ness." em Montserrat 500 com o ponto em BlueDot (lib/marca.ts).
+if (isExport) aplicarMarca(editor);
 // ness.: o visual do NESS Design System, depois dos estilos de fábrica (lib/ness-tema.ts).
 document.head.appendChild(el("style", { text: NESS_CSS + NESS_CAPA_CSS }));
 // Exports are captured when this script finishes: let web fonts land first so

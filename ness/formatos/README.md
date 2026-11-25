@@ -42,10 +42,15 @@ o gerador falha nomeando o formato; refaça a alteração sobre a versão nova e
 | Formato | Editor | Exportação |
 | --- | --- | --- |
 | Apresentação | Fundo near-black; layouts Capa, Seção, Conteúdo, Dados, Fluxo, Duas e Quatro colunas; paletas do editor nas cores do DS | PowerPoint nativo com Montserrat/Inter/JetBrains Mono e as cores do DS; HTML e PDF iguais à tela |
-| Documento | Tema claro (escuro segue o sistema); seções numeradas 01, 02…; subtítulos com ▸; citação como destaque; tabela com cabeçalho em tinta; cantos retos | HTML/PDF em A4 com o primeiro título como capa near-black e logotipo; Word em A4 com os mesmos estilos |
-| Planilha | Tokens do tema claro, Inter, BlueDot como destaque, título em Montserrat | Excel com Inter |
+| Documento | Tema claro (escuro segue o sistema); seções numeradas 01, 02…; subtítulos com ▸; citação como destaque; tabela com cabeçalho em tinta; cantos retos | HTML/PDF em A4 com o primeiro título como capa near-black e logotipo; Word em A4 com os mesmos estilos; nos dois, a marca `ness.` em Montserrat 500 com o ponto em BlueDot |
+| Planilha | Tokens do tema claro, Inter, BlueDot como destaque, título em Montserrat | Excel com Inter; a marca `ness.` nas células em Montserrat com o ponto em BlueDot (rich text) |
 
 ## Limites conhecidos
+
+- A marca `ness.` (Montserrat 500, ponto em BlueDot) aparece na Apresentação inteira e nas exportações de
+  Documento e Planilha; nos editores de Documento e Planilha, na tela, ela fica como texto comum, porque
+  decorar texto editável mexeria no conteúdo e no cursor. O Excel não embute fontes: sem Montserrat
+  instalada, a palavra sai na fonte substituta, com o ponto em BlueDot.
 
 - O `.pptx` e o `.docx` levam as fontes dentro (cerca de 270 KB a mais por arquivo). O `.docx` foi
   conferido no LibreOffice sem as fontes instaladas; o `.fntdata` do `.pptx`, com a libeot (o LibreOffice

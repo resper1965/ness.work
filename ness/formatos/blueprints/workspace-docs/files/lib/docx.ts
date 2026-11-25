@@ -24,6 +24,7 @@ import { type ZipEntry, createZip } from "@gadgets/bundled-blueprints/libraries/
 import { VOID_TAGS } from "./merge.ts";
 import type { DocFont, DocSettings } from "./protocol.ts";
 import { fontesEmbutidas } from "./ness-fontes-word.ts";
+import { trechosMarca } from "./marca.ts";
 
 /* ═══════════════════════ 1. Limits, units & XML ════════════════════════════ */
 
@@ -731,6 +732,19 @@ class DocxWriter {
   }
 
   #textRun(text: string, fmt: RunFormat, ctx: InlineContext): void {
+    // ness.: a palavra "ness." em Montserrat 500 (o "Regular" embutido) e o ponto em BlueDot; código fica como está.
+    if (!fmt.code && !ctx.pre && text.includes("ness.")) {
+      const trechos = trechosMarca(text);
+      if (trechos.some((t) => t.marca)) {
+        for (const t of trechos) {
+          if (!t.marca) { this.#textRun(t.texto, fmt, ctx); continue; }
+          const marca: RunFormat = { ...fmt, font: HEAD_FONT, bold: false, caps: false, smallCaps: false };
+          ctx.runs.push(`<w:r>${runProperties(marca)}<w:t xml:space="preserve">ness</w:t></w:r>`);
+          ctx.runs.push(`<w:r>${runProperties({ ...marca, color: ACCENT })}<w:t xml:space="preserve">.</w:t></w:r>`);
+        }
+        return;
+      }
+    }
     let body = "";
     for (const part of text.split(/(\t|\n)/)) {
       if (part === "\t") body += "<w:tab/>";

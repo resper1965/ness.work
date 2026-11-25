@@ -474,3 +474,15 @@ describe("ness.: fontes embutidas", () => {
     expect([...ofuscar(ofuscada, chave)]).toEqual([...fonte]);
   });
 });
+
+describe("ness.: a marca no Word", () => {
+  it("escreve \"ness\" em Montserrat sem negrito e o ponto em BlueDot", async () => {
+    const { document } = await exportDocx(["<p>A <strong>ness.</strong> e a trustness.</p>", "<pre>ness.</pre>"]);
+    const p = paragraph(document, "A ness.");
+    expect(textOf(p)).toBe("A ness. e a trustness.");
+    expect(p).toMatch(/<w:r><w:rPr><w:rFonts w:ascii="Montserrat" w:hAnsi="Montserrat" w:cs="Montserrat"\/><w:b w:val="0"\/><w:bCs w:val="0"\/>[^]*?<\/w:rPr><w:t xml:space="preserve">ness<\/w:t><\/w:r>/);
+    expect(p).toMatch(/<w:color w:val="00ADE8"\/>[^]*?<w:t xml:space="preserve">\.<\/w:t>/);
+    const code = paragraph(document, "ness.");
+    expect(code).not.toContain("Montserrat");
+  });
+});
