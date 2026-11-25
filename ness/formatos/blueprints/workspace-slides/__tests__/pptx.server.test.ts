@@ -387,3 +387,17 @@ describe("ness.: fontes embutidas", () => {
     }
   });
 });
+
+describe("ness.: a marca no texto", () => {
+  it("desenha \"ness.\" em Montserrat 500 com o ponto em BlueDot, e deixa trustness. e n.secops como estão", async () => {
+    const parts = await exportDeck({ slides: [slide([{ id: "t", type: "text", x: 40, y: 40, w: 600, props: { text: "A ness. opera o n.secops; a trustness. audita." } }])] });
+    const xml = text(parts, "ppt/slides/slide1.xml");
+    const runs = [...xml.matchAll(/<a:r><a:rPr ([^>]*)>(.*?)<\/a:rPr><a:t xml:space="preserve">(.*?)<\/a:t><\/a:r>/g)].map((m) => ({ attrs: m[1], props: m[2], text: m[3] }));
+    const at = runs.findIndex((r) => r.text === "ness");
+    expect(runs[at]!.attrs).toContain('b="0"');
+    expect(runs[at]!.props).toContain('<a:latin typeface="Montserrat"/>');
+    expect(runs[at + 1]).toMatchObject({ text: "." });
+    expect(runs[at + 1]!.props).toContain('<a:srgbClr val="00ADE8"');
+    expect(xml).toContain("n.secops; a trustness. audita.");
+  });
+});

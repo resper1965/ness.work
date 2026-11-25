@@ -37,6 +37,7 @@ import { clampView, isFit, stepScale, wheelPixels, wheelZoomFactor, zoomAt, type
 import { parseSvgMarkup, scopeSvgIds, svgArtworkSize } from "./lib/svg.ts";
 import { SLIDE_LAYOUTS, type SlideTemplate } from "./lib/layouts.ts";
 import { NESS } from "./lib/ness.ts";
+import { marcaHtml } from "./lib/marca.ts";
 import { FONTES_CSS } from "./lib/ness-ativos.ts";
 import { LOGO_IMAGE_TYPES, LOGO_POSITIONS, deckLogoBox, isEmptyLogoSlot, logoAlt, logoBlockBox, logoShowsOn, newLogoBlockBox } from "./lib/logo.ts";
 
@@ -507,7 +508,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
         for (let i = 0; i < txt.length; ) {
           let j = i;
           while (j < txt.length && marks[j] === marks[i]) j++;
-          const piece = escapeHtml(txt.slice(i, j));
+          const piece = marcaHtml(txt.slice(i, j)); // ness.: a marca no meio do título
           html += marks[i] ? `<span class="hl" style="color:${accent}">${piece}</span>` : piece;
           i = j;
         }
@@ -1860,6 +1861,8 @@ function saveKey(e: KeyboardEvent): boolean {
 }
 function bindInlineText<E extends HTMLElement>(elem: E, slide: Slide, block: Block, propKey: string, transform?: ((raw: PropValue) => string) | null, placeholder = "Type here"): E {
   const raw = (block.props || {})[propKey] ?? "";
+  // ness.: sem outra marcação, o texto ainda desenha a marca "ness." (lib/marca.ts), editando ou não.
+  transform ??= (value) => marcaHtml(String(value));
   if (inlineEditing(block)) {
     // The value last saved: the field can outlive a save while another field
     // is being edited (renderWhenIdle), and typing the old text back must save.
@@ -1996,7 +1999,12 @@ function bindInlineList<E extends HTMLElement>(list: E, slide: Slide, block: Blo
   // Items past the limit aren't shown; keep them when saving.
   const hidden = allItems.slice(maxItems);
   if (!inlineEditing(block)) {
-    for (const item of items) list.appendChild(makeRow(item).row);
+    for (const item of items) {
+      const { row, textEl } = makeRow(item);
+      // ness.: a marca "ness." nos itens (lib/marca.ts); editando, o item fica em texto puro.
+      if (item.includes("ness.")) textEl.innerHTML = marcaHtml(item);
+      list.appendChild(row);
+    }
     return list;
   }
   const fields = () => [...list.querySelectorAll<HTMLElement>(".inline-edit")];
