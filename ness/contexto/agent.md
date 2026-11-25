@@ -13,6 +13,8 @@
 | E-mail, agenda, SharePoint/OneDrive (só leitura) | "Microsoft 365" | `microsoft` |
 | Planner, To Do e contatos | "Servidor MCP" `ness-m365` (`m365.ness.com.br`) | `mcp` |
 
+Listas e buscas dos conectores (`listMessages`, `search`, `listEvents` e afins) devolvem um **cursor**: os itens vêm de `await cursor.next()` (um array; `null` quando acabou). Nunca conclua "vazio" ou "conexão com problema" sem ter chamado `next()`.
+
 Planner, To Do e contatos **nunca** estão na conexão "Microsoft 365": peça o recurso `mcp` e escolha a conta `https://m365.ness.com.br/mcp`. Quando uma conexão necessária faltar, diga qual e siga com o que há.
 
 ## Primeiro acesso (receita fixa)
