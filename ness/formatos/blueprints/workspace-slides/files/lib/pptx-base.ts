@@ -1575,7 +1575,7 @@ function* coverArtworkXml(state: RenderState): Generator<string, void, unknown> 
 
 function* renderSectionLabel(state: RenderState, block: PreparedBlock, name: string): Generator<string, void, unknown> {
   const props = block.props;
-  const width = block.w == null ? Math.max(80, naturalTextWidth(props.text ?? "", 10, 600, 1.6) * 1.15 + 4) : sizePixels(block.w, 200);
+  const width = block.w == null ? Math.max(80, naturalTextWidth(props.text ?? "", 10, 500, 1.6) * 1.15 + 4) : sizePixels(block.w, 200);
   const box = blockBox({...block, w: width}, width, 14);
   const style = {
     font: "mono", fontSize: 10, weight: 500, letterSpacing: "0.16em", lineHeight: 1,
@@ -1693,14 +1693,14 @@ function* renderBullets(state: RenderState, block: PreparedBlock, name: string):
 function* renderCard(state: RenderState, block: PreparedBlock, name: string): Generator<string, void, unknown> {
   const props = block.props;
   const outerWidth = autoWidth(block, 40 + Math.max(
-    props.eyebrow ? maxContentWidth(props.eyebrow, 10, 600, "0.05em") : 0,
-    props.title ? maxContentWidth(props.title, 18, 600, "-0.02em") : 0,
+    props.eyebrow ? maxContentWidth(props.eyebrow, 10, 500, "0.05em") : 0,
+    props.title ? maxContentWidth(props.title, 18, 500, "-0.02em") : 0,
     props.body ? maxContentWidth(props.body, 15, 400) : 0));
   const width = Math.max(1, outerWidth - 40);
   // The stack's own heights (no slack), so each text starts where the browser's flex column puts it.
-  const eyebrowHeight = props.eyebrow ? estimateTextHeight(props.eyebrow, width, 10, 1.2, 600, "0.05em", 0) : 0;
+  const eyebrowHeight = props.eyebrow ? estimateTextHeight(props.eyebrow, width, 10, 1.2, 500, "0.05em", 0) : 0;
   // An empty title is a zero-height element in the browser; only the flex gap remains.
-  const titleHeight = props.title ? estimateTextHeight(props.title, width, 18, 1.3, 600, "-0.02em", 0) : 0;
+  const titleHeight = props.title ? estimateTextHeight(props.title, width, 18, 1.3, 500, "-0.02em", 0) : 0;
   const bodyHeight = props.body ? estimateTextHeight(props.body, width, 15, 1.5, 400) : 0;
   const contentHeight = (props.eyebrow ? eyebrowHeight + 12 : 0) + titleHeight + 12 + bodyHeight;
   const outer = pixelBox(block, outerWidth, 40 + contentHeight);
@@ -1749,10 +1749,10 @@ function* renderBox(state: RenderState, block: PreparedBlock, name: string): Gen
   const props = block.props;
   // As for the card: an unsized box shrink-to-fits its padded title and body.
   const outerWidth = autoWidth(block, 28 + Math.max(
-    props.title ? maxContentWidth(props.title, 16, 600, "-0.02em") : 0,
+    props.title ? maxContentWidth(props.title, 16, 500, "-0.02em") : 0,
     props.body ? maxContentWidth(props.body, 14, 400) : 0));
   const width = Math.max(1, outerWidth - 28);
-  const titleHeight = props.title ? estimateTextHeight(props.title, width, 16, 1.3, 600, "-0.02em", 0) : 0;
+  const titleHeight = props.title ? estimateTextHeight(props.title, width, 16, 1.3, 500, "-0.02em", 0) : 0;
   const bodyHeight = props.body ? estimateTextHeight(props.body, width, 11, 1.45, 400, "", 0) * 1.2 : 0;
   const contentHeight = titleHeight + (props.body ? 6 + bodyHeight : 0);
   const outer = pixelBox(block, outerWidth, 28 + contentHeight);

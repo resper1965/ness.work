@@ -444,7 +444,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
       props: {
         text: "[TITLE]",
         fontSize: 58,
-        weight: 600,
+        weight: 500,
         color: NESS.ink,
         letterSpacing: "-0.03em",
         highlight: "",
@@ -468,7 +468,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
         key: "weight",
         label: "Weight",
         type: "select",
-        options: ["300", "400", "500"],
+        options: ["400", "500"],
         advanced: true
       },
       { key: "letterSpacing", label: "Letter spacing", type: "text", advanced: true },
@@ -555,7 +555,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
         key: "weight",
         label: "Weight",
         type: "select",
-        options: ["300", "400", "500"],
+        options: ["400", "500"],
         advanced: true
       },
       {
@@ -620,7 +620,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
         key: "weight",
         label: "Weight",
         type: "select",
-        options: ["300", "400", "500"],
+        options: ["400", "500"],
         advanced: true
       },
       {
