@@ -45,3 +45,12 @@ test("português europeu reprova a checagem ptBR", () => {
   assert.equal(pontuar("Veja o ficheiro hosts e o registo A. Diga-me o erro.", base).falhas.join(), "ptBR");
   assert.deepEqual(pontuar("Veja o arquivo hosts e o registro A.", base), { nota: 1, falhas: [] });
 });
+
+test("resumir deixa pedidos de conexão e erros fora da média e lista os ids", () => {
+  const rs = [
+    { id: "a", categoria: "rede", nota: 1, estado: "ok" },
+    { id: "b", categoria: "rede", nota: 1, estado: "conexao" },
+    { id: "c", categoria: "m365", nota: 1, estado: "erro" },
+  ];
+  assert.deepEqual(resumir(rs), { media: 1, porCategoria: { rede: 1 }, piores: ["a"], conexao: ["b"], erro: ["c"] });
+});

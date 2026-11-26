@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lerSaida, textoDaResposta } from "./cli.mjs";
+import { lerSaida, textoDaResposta, estadoDaResposta } from "./cli.mjs";
 
 test("lerSaida decodifica JSON", () => {
   assert.equal(lerSaida('"chat_123"\n'), "chat_123");
@@ -31,4 +31,11 @@ test("textoDaResposta trata ausência de resposta e outros tipos de registro", (
 
 test("lerSaida devolve o id numérico do new-chat", () => {
   assert.equal(lerSaida("42\n"), 42);
+});
+
+test("estadoDaResposta separa resposta, pedido de conexão, erro e vazio", () => {
+  assert.equal(estadoDaResposta({ type: "message", message: "Oi" }), "ok");
+  assert.equal(estadoDaResposta({ type: "connectionRequest", requestId: "1:x" }), "conexao");
+  assert.equal(estadoDaResposta({ type: "error", message: "410: deprecated" }), "erro");
+  assert.equal(estadoDaResposta(null), "vazio");
 });

@@ -3,7 +3,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
 import { pontuar, resumir } from "./pontuar.mjs";
-import { lerSaida, textoDaResposta } from "./cli.mjs";
+import { lerSaida, textoDaResposta, estadoDaResposta } from "./cli.mjs";
 import { comandoCfOs } from "../cfos.mjs";
 
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
@@ -29,22 +29,30 @@ const resultados = [];
 
 for (const p of perguntas) {
   const t0 = Date.now();
-  const chatId = api("open-workspace", ws, "new-chat", p.texto, modelo);
-  if (!((typeof chatId === "number" && Number.isInteger(chatId)) || (typeof chatId === "string" && chatId))) {
-    throw new Error(`new-chat não devolveu um id: ${JSON.stringify(chatId)}`);
+  let r;
+  try {
+    const chatId = api("open-workspace", ws, "new-chat", p.texto, modelo);
+    if (!((typeof chatId === "number" && Number.isInteger(chatId)) || (typeof chatId === "string" && chatId))) {
+      throw new Error(`new-chat não devolveu um id: ${JSON.stringify(chatId)}`);
+    }
+    const bruto = api("open-workspace", ws, "wait-for-agent", String(chatId), "--timeout", "300");
+    const estado = estadoDaResposta(bruto);
+    const resposta = textoDaResposta(bruto);
+    const nota = estado === "ok" ? pontuar(resposta, p) : { nota: 0, falhas: [estado] };
+    r = { id: p.id, categoria: p.categoria, modelo, chatId, estado, segundos: Math.round((Date.now() - t0) / 1000), resposta, ...nota };
+  } catch (e) {
+    // Uma pergunta que falha (tempo esgotado, erro da CLI) não derruba a rodada.
+    r = { id: p.id, categoria: p.categoria, modelo, estado: "falha", segundos: Math.round((Date.now() - t0) / 1000), resposta: String(e.message ?? e), nota: 0, falhas: ["falha"] };
   }
-  const resposta = textoDaResposta(api("open-workspace", ws, "wait-for-agent", String(chatId), "--timeout", "300"));
-  if (!resposta) console.error(`${p.id}: o agente não escreveu resposta`);
-  const r = { id: p.id, categoria: p.categoria, modelo, chatId, segundos: Math.round((Date.now() - t0) / 1000), resposta, ...pontuar(resposta, p) };
   resultados.push(r);
   appendFileSync(jsonl, JSON.stringify(r) + "\n");
-  console.error(`${p.id} ${r.nota.toFixed(2)} ${r.falhas.join(" ")}`);
+  console.error(`${p.id} ${r.estado} ${r.nota.toFixed(2)} ${r.falhas.join(" ")}`);
 }
 
 const s = resumir(resultados);
 const linhas = [
   `# Avaliação da Nessie — ${modelo} — ${nome.slice(0, 16)}`, "",
-  `Média: ${(s.media * 100).toFixed(0)}% em ${resultados.length} perguntas. Tempo médio: ${Math.round(resultados.reduce((a, r) => a + r.segundos, 0) / resultados.length)} s.`, "",
+  `Média: ${(s.media * 100).toFixed(0)}% nas respostas avaliadas (${resultados.length - (s.conexao?.length ?? 0) - (s.erro?.length ?? 0)} de ${resultados.length}).` + (s.conexao ? ` Paradas pedindo conexão: ${s.conexao.join(", ")}.` : "") + (s.erro ? ` Erro ou sem resposta: ${s.erro.join(", ")}.` : "") + ` Tempo médio: ${Math.round(resultados.reduce((a, r) => a + r.segundos, 0) / resultados.length)} s.`, "",
   "| Categoria | Acerto |", "|---|---|",
   ...Object.entries(s.porCategoria).map(([c, v]) => `| ${c} | ${(v * 100).toFixed(0)}% |`), "",
   `Piores: ${s.piores.join(", ")}`, "",

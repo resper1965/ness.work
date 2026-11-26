@@ -17,3 +17,14 @@ export function textoDaResposta(v) {
   if (v && Array.isArray(v.content)) return v.content.filter((c) => c?.type === "text").map((c) => c.text).join("\n");
   return JSON.stringify(v);
 }
+
+// Classifica o resultado do wait-for-agent: "ok" (mensagem do agente), "conexao" (parou pedindo uma
+// conexão, sem resposta para avaliar), "erro" (registro de erro do modelo ou do agente) ou "vazio".
+export function estadoDaResposta(v) {
+  if (v === null || v === undefined || v === "") return "vazio";
+  if (typeof v === "string") return "ok";
+  if (v.type === "message") return "ok";
+  if (v.type === "connectionRequest") return "conexao";
+  if (v.type === "error") return "erro";
+  return "outro";
+}
