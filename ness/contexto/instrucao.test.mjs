@@ -26,7 +26,7 @@ test("recusa texto acima do limite", () => {
 test("o texto real do repositório cabe no limite e começa pela Nessie", () => {
   const t = montarInstrucao();
   assert.ok(t.length <= LIMITE);
-  assert.match(t, /Você é a \*\*Nessie\*\*/);
+  assert.match(t, /Seu nome é \*\*Nessie\*\*/);
 });
 
 test("comando usa a CLI oficial sem shell, com a instância, e lê o texto da entrada padrão", () => {
