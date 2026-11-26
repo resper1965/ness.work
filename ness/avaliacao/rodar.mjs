@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
 import { pontuar, resumir } from "./pontuar.mjs";
 import { lerSaida, textoDaResposta } from "./cli.mjs";
+import { comandoCfOs } from "../cfos.mjs";
 
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
 const url = arg("--url", "https://work.ness.com.br");
@@ -13,7 +14,8 @@ const so = arg("--so")?.split(",");
 if (!ws || !modelo) { console.error("Informe --workspace e --modelo (ids de `list-models`)."); process.exit(2); }
 
 function api(...args) {
-  const r = spawnSync("pnpm", ["--dir", "cloudflare-os", "exec", "cf-os", "api", "--url", url, ...args], { encoding: "utf8", shell: process.platform === "win32" });
+  const { cmd, args: argv } = comandoCfOs(["--url", url, ...args]);
+  const r = spawnSync(cmd, argv, { encoding: "utf8" });
   if (r.status !== 0) throw new Error(`cf-os api ${args[2] ?? args[0]} falhou: ${r.stderr.trim()}`);
   return lerSaida(r.stdout);
 }

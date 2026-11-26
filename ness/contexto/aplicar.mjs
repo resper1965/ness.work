@@ -3,9 +3,10 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { montarInstrucao, LIMITE } from "./instrucao.mjs";
+import { comandoCfOs } from "../cfos.mjs";
 
 export function comandoAplicar(url) {
-  return { cmd: "pnpm", args: ["--dir", "cloudflare-os", "exec", "cf-os", "api", "--url", url, "get-admin-api", "set-instance-instructions", "-"] };
+  return comandoCfOs(["--url", url, "get-admin-api", "set-instance-instructions", "-"]);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -16,7 +17,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { cmd, args } = comandoAplicar(url);
   const depoisDoApi = args.indexOf("api") + 1;
   const r = spawnSync(cmd, dry ? [...args.slice(0, depoisDoApi), "--dry-run", ...args.slice(depoisDoApi)] : args, {
-    input: texto, stdio: ["pipe", "inherit", "inherit"], shell: process.platform === "win32",
+    input: texto, stdio: ["pipe", "inherit", "inherit"]
   });
   if (r.status !== 0) process.exit(r.status ?? 1);
   console.error(`${dry ? "Simulado" : "Aplicado"}: ${texto.length} de ${LIMITE} caracteres em ${url}`);

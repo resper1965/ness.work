@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { montarInstrucao, LIMITE } from "./instrucao.mjs";
 import { comandoAplicar } from "./aplicar.mjs";
+import { CLI } from "../cfos.mjs";
 
 function pasta(soul, agent) {
   const d = mkdtempSync(join(tmpdir(), "instr-"));
@@ -28,9 +29,9 @@ test("o texto real do repositório cabe no limite e começa pela Nessie", () => 
   assert.match(t, /Você é a \*\*Nessie\*\*/);
 });
 
-test("comando usa a CLI oficial com a instância e lê o texto da entrada padrão", () => {
+test("comando usa a CLI oficial sem shell, com a instância, e lê o texto da entrada padrão", () => {
   assert.deepEqual(comandoAplicar("https://work.ness.com.br"), {
-    cmd: "pnpm",
-    args: ["--dir", "cloudflare-os", "exec", "cf-os", "api", "--url", "https://work.ness.com.br", "get-admin-api", "set-instance-instructions", "-"],
+    cmd: process.execPath,
+    args: [CLI, "api", "--url", "https://work.ness.com.br", "get-admin-api", "set-instance-instructions", "-"],
   });
 });
