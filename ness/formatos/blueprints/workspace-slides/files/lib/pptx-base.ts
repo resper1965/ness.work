@@ -1481,6 +1481,12 @@ const ARIAL_BOLD_WIDTHS = [
   611, 611, 389, 556, 333, 611, 556, 778, 556, 556, 500, 389, 280, 389, 584,
 ];
 
+// NESS Design System: peso máximo 500 (médio); o PowerPoint nunca recebe negrito.
+function pesoNess(peso: unknown, padrao: number): number {
+  const n = Number(peso);
+  return Math.min(Number.isFinite(n) && n > 0 ? n : padrao, 500);
+}
+
 function isBold(weight: unknown): boolean {
   return numberOr(weight, 400) >= 600;
 }
@@ -1607,14 +1613,14 @@ function* renderTitle(state: RenderState, block: PreparedBlock, name: string): G
   const fontSize = cssNumber(props.fontSize, 42, 1, 1000);
   const lineHeight = cssNumber(props.lineHeight, 1.08, 0.5, 4);
   const letterSpacing = props.letterSpacing || "-0.04em";
-  const width = autoWidth(block, maxContentWidth(text, fontSize, props.weight || 900, letterSpacing));
+  const width = autoWidth(block, maxContentWidth(text, fontSize, pesoNess(props.weight, 500), letterSpacing));
   const height = block.h == null
-    ? estimateTextHeight(text, width, fontSize, lineHeight, props.weight || 900, letterSpacing)
+    ? estimateTextHeight(text, width, fontSize, lineHeight, pesoNess(props.weight, 500), letterSpacing)
     : sizePixels(block.h, fontSize * lineHeight);
   yield* textShapeXml(state, name, blockBox({...block, w: width, h: height}, width, height), {
     fontSize,
     font: "head",
-    weight: props.weight || 900,
+    weight: pesoNess(props.weight, 500),
     letterSpacing,
     lineHeight,
     color: parseColor(props.color, "#" + NESS_HEX.ink),
@@ -1627,11 +1633,11 @@ function* renderSubtitle(state: RenderState, block: PreparedBlock, name: string)
   const text = props.text ?? "";
   const fontSize = cssNumber(props.fontSize, 19, 1, 1000);
   const lineHeight = cssNumber(props.lineHeight, 1.5, 0.5, 4);
-  const width = autoWidth(block, maxContentWidth(text, fontSize, props.weight || 500));
-  const height = block.h == null ? estimateTextHeight(text, width, fontSize, lineHeight, props.weight || 500) : sizePixels(block.h, fontSize * lineHeight);
+  const width = autoWidth(block, maxContentWidth(text, fontSize, pesoNess(props.weight, 500)));
+  const height = block.h == null ? estimateTextHeight(text, width, fontSize, lineHeight, pesoNess(props.weight, 500)) : sizePixels(block.h, fontSize * lineHeight);
   yield* textShapeXml(state, name, blockBox({...block, w: width, h: height}, width, height), {
     fontSize,
-    weight: props.weight || 500,
+    weight: pesoNess(props.weight, 500),
     lineHeight,
     color: parseColor(props.color, "#" + NESS_HEX.ink2),
     align: "left",
@@ -1643,7 +1649,7 @@ function* renderText(state: RenderState, block: PreparedBlock, name: string): Ge
   const text = props.text ?? "";
   const fontSize = cssNumber(props.fontSize, 19, 1, 1000);
   const lineHeight = cssNumber(props.lineHeight, 1.6, 0.5, 4);
-  const weight = props.weight || 400;
+  const weight = pesoNess(props.weight, 400);
   const width = autoWidth(block, maxContentWidth(text, fontSize, weight, props.letterSpacing));
   const height = block.h == null
     ? estimateTextHeight(text, width, fontSize, lineHeight, weight, props.letterSpacing)
@@ -1719,7 +1725,7 @@ function* renderCard(state: RenderState, block: PreparedBlock, name: string): Ge
   }
   if (props.title) {
     yield* textShapeXml(state, `${name} title`, boxFromPixels(x, y, width, titleHeight), {
-      font: "head", fontSize: 18, weight: 600, letterSpacing: "-0.02em", lineHeight: 1.3,
+      font: "head", fontSize: 18, weight: 500, letterSpacing: "-0.02em", lineHeight: 1.3,
       color: parseColor("#" + NESS_HEX.ink), align: "left",
     }, {text: props.title});
   }
@@ -1761,7 +1767,7 @@ function* renderBox(state: RenderState, block: PreparedBlock, name: string): Gen
   let y = outer.y + (outer.height - contentHeight) / 2;
   if (props.title) {
     yield* textShapeXml(state, `${name} title`, boxFromPixels(outer.x + 18, y, width, titleHeight), {
-      font: "head", fontSize: 16, weight: 600, letterSpacing: "-0.02em", lineHeight: 1.3,
+      font: "head", fontSize: 16, weight: 500, letterSpacing: "-0.02em", lineHeight: 1.3,
       color: parseColor("#" + NESS_HEX.ink), align: "left",
     }, {text: props.title});
   }
@@ -1797,7 +1803,7 @@ function* renderTonePill(state: RenderState, block: PreparedBlock, name: string)
   const width = naturalTextWidth(props.text ?? "", 11, 850, 0.06 * 11) + 0.06 * 11 + 24;
   const height = 10 + 11 * INHERITED_LINE_HEIGHT;
   yield* textShapeXml(state, name, blockBox({...block, w: width, h: height}, width, height), {
-    fontSize: 11, weight: 850, letterSpacing: "0.06em", lineHeight: INHERITED_LINE_HEIGHT,
+    fontSize: 11, weight: 500, letterSpacing: "0.06em", lineHeight: INHERITED_LINE_HEIGHT,
     color: parseColor(tone), align: "center",
   }, {text: props.text ?? ""}, {
     preset: "roundRect",
@@ -1898,7 +1904,7 @@ function* renderPlaceholder(state: RenderState, name: string, block: PreparedBlo
     ? solidFill(parseColor(background))
     : solidFill(parseColor("#7B6254"), 0.06);
   yield* textShapeXml(state, name, box, {
-    fontSize: 11, weight: 700, letterSpacing: "0.08em", lineHeight: 1.2,
+    fontSize: 11, weight: 500, letterSpacing: "0.08em", lineHeight: 1.2,
     color: parseColor("#A89082"), align: "center",
   }, {text: text.toUpperCase()}, {
     preset: "roundRect",
@@ -1998,7 +2004,7 @@ function* renderArrow(state: RenderState, block: PreparedBlock, name: string): G
       // The browser's SVG text sits on a baseline 8px above the midpoint.
       boxFromPixels((x1 + x2 - labelWidth) / 2, (y1 + y2) / 2 - 8 - cssBaseline(fontSize, 1),
         labelWidth, fontSize * 1.3), {
-        fontSize, weight: 800, letterSpacing: "0.02em", lineHeight: 1,
+        fontSize, weight: 500, letterSpacing: "0.02em", lineHeight: 1,
         color, align: "center",
       }, {text: props.label});
   }
@@ -2027,7 +2033,7 @@ function* renderLogo(state: RenderState, block: PreparedBlock, name: string): Ge
   const width = block.w != null ? sizePixels(block.w, 1) : naturalTextWidth(text, fontSize, 700, -0.02 * fontSize) + fontSize * 0.25;
   yield* textShapeXml(state, name, blockBox({...block, w: width, h: fontSize}, width, fontSize), {
     fontSize,
-    weight: 700,
+    weight: 500,
     letterSpacing: "-0.02em",
     lineHeight: 1,
     color: parseColor(dark ? "#000000" : "#FFFFFF"),

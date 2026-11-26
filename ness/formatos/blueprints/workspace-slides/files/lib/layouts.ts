@@ -33,7 +33,7 @@ const texto = (x: number, y: number, w: number, text: string, extra: Record<stri
 const rotulo = (x: number, y: number, text: string): BlockInput => ({ type: "sectionLabel", x, y, props: { text } });
 const titulo = (x: number, y: number, w: number, text: string, fontSize: number): BlockInput => ({
   type: "title", x, y, w,
-  props: { text, fontSize, weight: 600, color: NESS.ink, letterSpacing: "-0.02em", lineHeight: 1.1, highlight: "" },
+  props: { text, fontSize, weight: 500, color: NESS.ink, letterSpacing: "-0.02em", lineHeight: 1.1, highlight: "" },
 });
 
 function makeTitleSlide(): SlideTemplate {
@@ -53,7 +53,7 @@ function makeSectionSlide(): SlideTemplate {
   return {
     background: fundo(),
     blocks: [
-      texto(X, 210, 300, "01", { fontSize: 101, weight: 600, family: "head", color: NESS.bd, lineHeight: 1, letterSpacing: "-0.04em" }),
+      texto(X, 210, 300, "01", { fontSize: 101, weight: 500, family: "head", color: NESS.bd, lineHeight: 1, letterSpacing: "-0.04em" }),
       titulo(X, 326, 900, "Nome da seção", 38),
       em(barra(68, 2, NESS.line), X, 386),
       texto(X, 401, 620, "Uma frase sobre o que esta seção mostra."),
@@ -85,7 +85,7 @@ function makeDataSlide(): SlideTemplate {
     return [
       { type: "shape", x, y: 175, w: 350, h: 150, props: { kind: "rect", fill: NESS.surf, stroke: NESS.line, strokeWidth: 1, radius: 0, opacity: 1 } },
       rotulo(x + 22, 197, rot),
-      texto(x + 22, 222, 300, valor, { fontSize: 41, weight: 600, family: "head", color: cor, lineHeight: 1 }),
+      texto(x + 22, 222, 300, valor, { fontSize: 41, weight: 500, family: "head", color: cor, lineHeight: 1 }),
       texto(x + 22, 285, 300, nota, { fontSize: 10, weight: 500, family: "mono", color: NESS.ink4, lineHeight: 1, letterSpacing: "0.14em" }),
     ];
   };
@@ -127,7 +127,7 @@ function makeFlowSlide(): SlideTemplate {
 
 function makeTwoColumnSlide(): SlideTemplate {
   const coluna = (x: number): BlockInput[] => [
-    texto(x, 180, 500, "Título da coluna", { fontSize: 18, weight: 600, family: "head", color: NESS.ink, lineHeight: 1.3 }),
+    texto(x, 180, 500, "Título da coluna", { fontSize: 18, weight: 500, family: "head", color: NESS.ink, lineHeight: 1.3 }),
     texto(x, 220, 500, "Texto curto de apoio. Mantenha as duas colunas com a mesma estrutura e tamanho parecido."),
   ];
   return {
@@ -142,7 +142,7 @@ function makeFourColumnSlide(): SlideTemplate {
     const x = X + i * 265;
     blocks.push(
       texto(x, 180, 60, String(i + 1).padStart(2, "0"), { fontSize: 13, weight: 500, family: "mono", color: NESS.bd, lineHeight: 1.2 }),
-      texto(x, 210, 240, "Título da coluna", { fontSize: 16, weight: 600, family: "head", color: NESS.ink, lineHeight: 1.3 }),
+      texto(x, 210, 240, "Título da coluna", { fontSize: 16, weight: 500, family: "head", color: NESS.ink, lineHeight: 1.3 }),
       texto(x, 250, 240, "Uma ideia clara por coluna.", { fontSize: 14, color: NESS.ink3 }),
     );
   });
