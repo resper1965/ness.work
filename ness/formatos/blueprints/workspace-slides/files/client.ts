@@ -41,6 +41,14 @@ import { marcaHtml } from "./lib/marca.ts";
 import { FONTES_CSS } from "./lib/ness-ativos.ts";
 import { LOGO_IMAGE_TYPES, LOGO_POSITIONS, deckLogoBox, isEmptyLogoSlot, logoAlt, logoBlockBox, logoShowsOn, newLogoBlockBox } from "./lib/logo.ts";
 
+// NESS Design System: a marca usa no máximo o peso médio (500). Pesos maiores pedidos pelo agente ou
+// pelo editor são reduzidos para 500, na tela e no PowerPoint.
+const PESO_MAX_NESS = 500;
+function pesoNess(peso: unknown, padrao: number): number {
+  const n = Number(peso);
+  return Math.min(Number.isFinite(n) && n > 0 ? n : padrao, PESO_MAX_NESS);
+}
+
 // The bindings the Workshop's iframe bootstrap defines before this module runs: the RPC stub to
 // this gadget's Durable Object, Cap'n Web's RpcTarget for the callbacks it is handed, and, in an
 // export render, the id of the format being exported.
@@ -398,7 +406,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
             borderRadius: "2px",
             color: C.subtle,
             fontSize: "10px",
-            fontWeight: "700",
+            fontWeight: "500",
             letterSpacing: "0.08em",
             textTransform: "uppercase",
             whiteSpace: "nowrap",
@@ -413,7 +421,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
         style: {
           fontFamily: FONT,
           fontSize: LOGO_FONT_PX * scale + "px",
-          fontWeight: "700",
+          fontWeight: "500",
           lineHeight: "1",
           letterSpacing: "-0.02em",
           whiteSpace: "nowrap",
@@ -436,7 +444,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
       props: {
         text: "[TITLE]",
         fontSize: 58,
-        weight: 600,
+        weight: 500,
         color: NESS.ink,
         letterSpacing: "-0.03em",
         highlight: "",
@@ -460,7 +468,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
         key: "weight",
         label: "Weight",
         type: "select",
-        options: ["400", "500", "600", "700"],
+        options: ["400", "500"],
         advanced: true
       },
       { key: "letterSpacing", label: "Letter spacing", type: "text", advanced: true },
@@ -479,7 +487,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
         style: {
           fontFamily: HEAD,
           fontSize: (props.fontSize || 42) + "px",
-          fontWeight: String(props.weight || 900),
+          fontWeight: String(pesoNess(props.weight, 500)),
           letterSpacing: props.letterSpacing || "-0.04em",
           lineHeight: String(props.lineHeight || 1.08),
           color: props.color || C.text,
@@ -547,7 +555,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
         key: "weight",
         label: "Weight",
         type: "select",
-        options: ["400", "500", "600", "700"],
+        options: ["400", "500"],
         advanced: true
       },
       {
@@ -566,7 +574,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
           color: props.color || C.muted,
           fontSize: (props.fontSize || 19) + "px",
           lineHeight: String(props.lineHeight || 1.5),
-          fontWeight: String(props.weight || 500),
+          fontWeight: String(pesoNess(props.weight, 500)),
           whiteSpace: "pre-wrap"
         }
       });
@@ -612,7 +620,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
         key: "weight",
         label: "Weight",
         type: "select",
-        options: ["400", "500", "600", "700"],
+        options: ["400", "500"],
         advanced: true
       },
       {
@@ -630,7 +638,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
         style: {
           fontFamily: props.family === "head" ? HEAD : props.family === "mono" ? MONO : FONT,
           fontSize: (props.fontSize || 19) + "px",
-          fontWeight: String(props.weight || 400),
+          fontWeight: String(pesoNess(props.weight, 400)),
           color: props.color || NESS.ink2,
           textAlign: props.align || "left",
           lineHeight: String(props.lineHeight || 1.6),
@@ -775,7 +783,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
         style: {
           fontFamily: HEAD,
           fontSize: "18px",
-          fontWeight: "600",
+          fontWeight: "500",
           letterSpacing: "-0.02em",
           lineHeight: "1.3",
           color: NESS.ink
@@ -832,7 +840,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
         style: {
           fontFamily: HEAD,
           fontSize: "16px",
-          fontWeight: "600",
+          fontWeight: "500",
           letterSpacing: "-0.02em",
           color: NESS.ink,
           lineHeight: "1.3"
@@ -876,7 +884,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
           background: hexA(toneColor[tone], 0.12),
           color: toneColor[tone],
           fontSize: "11px",
-          fontWeight: "850",
+          fontWeight: "500",
           letterSpacing: "0.06em",
           textTransform: "uppercase",
           whiteSpace: "nowrap"
@@ -1055,7 +1063,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
           style: {
             color: C.subtle,
             fontSize: "11px",
-            fontWeight: "700",
+            fontWeight: "500",
             letterSpacing: "0.08em",
             textTransform: "uppercase"
           }
@@ -1112,7 +1120,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
           style: {
             color: C.subtle,
             fontSize: "11px",
-            fontWeight: "700",
+            fontWeight: "500",
             letterSpacing: "0.08em",
             textTransform: "uppercase"
           }
@@ -1123,7 +1131,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
       if (!node) {
         wrap.appendChild(el("div", {
           text: "Invalid SVG",
-          style: { color: C.orange, fontSize: "12px", fontWeight: "700" }
+          style: { color: C.orange, fontSize: "12px", fontWeight: "500" }
         }));
         return wrap;
       }
@@ -1257,7 +1265,7 @@ var COMPONENTS: Record<string, ComponentDef> = {
           "text-anchor": "middle",
           fill: color,
           "font-size": "12",
-          "font-weight": "800",
+          "font-weight": "500",
           "font-family": FONT,
           "letter-spacing": "0.02em"
         });

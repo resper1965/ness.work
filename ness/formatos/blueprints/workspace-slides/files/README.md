@@ -181,9 +181,9 @@ Every block is `{ id, type, x, y, w?, h?, props }` in slide coordinates
 | Type | Props (defaults) | Notes |
 | --- | --- | --- |
 | `sectionLabel` | `text` | The eyebrow: JetBrains Mono 10px/500, `#94A3B8`, uppercase, tracked .16em. |
-| `title` | `text`, `fontSize` (58), `weight` (700), `color`, `letterSpacing`, `lineHeight`, `highlight` ("") | Resizable width. |
-| `subtitle` | `text`, `fontSize` (17), `weight` (600), `color`, `lineHeight` | |
-| `text` | `text`, `fontSize` (19), `weight` (400), `color` (#CBD5E1), `align` (left/center/right), `lineHeight` (1.6), `family` (`sans` Inter / `head` Montserrat / `mono` JetBrains Mono) | Body copy; `\n` breaks lines. |
+| `title` | `text`, `fontSize` (58), `weight` (500; máximo 500), `color`, `letterSpacing`, `lineHeight`, `highlight` ("") | Resizable width. |
+| `subtitle` | `text`, `fontSize` (17), `weight` (500; máximo 500), `color`, `lineHeight` | |
+| `text` | `text`, `fontSize` (19), `weight` (400; máximo 500), `color` (#CBD5E1), `align` (left/center/right), `lineHeight` (1.6), `family` (`sans` Inter / `head` Montserrat / `mono` JetBrains Mono) | Body copy; `\n` breaks lines. |
 | `bulletList` | `text` (one item per line), `treatment` (`primary` 19px / `compact` 17px) | BlueDot square markers; shows at most 6 items. |
 | `card` | `eyebrow`, `title`, `body`, `tone`, `topStripe` | Needs `w`, `h`. Tone and stripe currently draw nothing different. |
 | `box` | `title`, `body`, `dashed`, `tone` | Diagram box; needs `w`, `h`. |
