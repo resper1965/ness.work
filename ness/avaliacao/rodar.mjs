@@ -11,7 +11,7 @@ const url = arg("--url", "https://work.ness.com.br");
 const ws = arg("--workspace");
 const modelo = arg("--modelo");
 const so = arg("--so")?.split(",");
-if (!ws || !modelo) { console.error("Informe --workspace e --modelo (ids de `list-models`)."); process.exit(2); }
+if (!ws || !modelo || ws.startsWith("--") || modelo.startsWith("--")) { console.error("Informe --workspace e --modelo (ids de `list-models`)."); process.exit(2); }
 
 function api(...args) {
   const { cmd, args: argv } = comandoCfOs(["--url", url, ...args]);
