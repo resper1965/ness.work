@@ -4,9 +4,9 @@
 
 **Goal:** Tornar o ness.work sustentável como tela principal: instruções versionadas e aplicadas por script, bateria de avaliação da Nessie, escolha de modelo por custo × acerto (incluindo o Auto Router do AI Gateway), onboarding sem script por colaborador, alerta do segredo do Entra e validação no celular.
 
-**Architecture:** Tudo roda da máquina do Ricardo contra `https://work.ness.com.br`, usando a CLI oficial do Cloudflare OS (`pnpm cf-os api`, que só aceita admins da instalação, com login pelo Access). Scripts pequenos em `ness/contexto/` (instruções) e `ness/avaliacao/` (bateria) com funções puras testadas por `node --test`; a parte que fala com a instância é uma casca fina sobre a CLI.
+**Architecture:** Tudo roda da máquina do Ricardo contra `https://work.ness.com.br`, usando a CLI oficial do Cloudflare OS (`@gadgets/api-cli`, que só aceita admins da instalação, com login pelo Access). No pin atual (`82a1af8`) o `pnpm cf-os` da raiz do starter não tem o comando `api`; a CLI existe no submódulo e é chamada como `pnpm --dir cloudflare-os exec cf-os api …` (pacote `@gadgets/api-cli`, dependência da raiz do submódulo). A CLI escreve resultados para scripts em JSON no stdout e o resto no stderr. Scripts pequenos em `ness/contexto/` (instruções) e `ness/avaliacao/` (bateria) com funções puras testadas por `node --test`; a parte que fala com a instância é uma casca fina sobre a CLI.
 
-**Tech Stack:** Node ≥ 24 (`node:test`, `node:child_process`), `pnpm cf-os api` (Cap'n Web, gerado de `cloudflare-os/packages/workshop-shared/src/api.ts`), `cloudflared` (login no Access), Cloudflare AI Gateway (Auto Router, `cloudflare/auto`), Microsoft Entra.
+**Tech Stack:** Node ≥ 24 (`node:test`, `node:child_process`), `pnpm --dir cloudflare-os exec cf-os api` (Cap'n Web, gerado de `cloudflare-os/packages/workshop-shared/src/api.ts`), `cloudflared` (login no Access), Cloudflare AI Gateway (Auto Router, `cloudflare/auto`), Microsoft Entra.
 
 **Spec:** análise de 26/11/2026 na conversa com o Ricardo (sem arquivo de spec). Pontos fora deste plano por decisão dele: MCP do ness.OS (em desenvolvimento), privacidade (v3), limite de 50 usuários (não é problema).
 
@@ -31,6 +31,7 @@
 | `ness/avaliacao/perguntas.json` (novo) | As 20 perguntas de referência e o que cada resposta deve cumprir |
 | `ness/avaliacao/pontuar.mjs` (novo) | `pontuar(resposta, pergunta)` e `resumir(resultados)`: funções puras |
 | `ness/avaliacao/pontuar.test.mjs` (novo) | Testes do pontuador |
+| `ness/avaliacao/cli.mjs` (novo) | `lerSaida` e `textoDaResposta`: decodificam o JSON que a CLI escreve no stdout |
 | `ness/avaliacao/rodar.mjs` (novo) | Roda a bateria contra a instância e grava `resultados/<data>-<modelo>.jsonl` e `.md` |
 | `ness/avaliacao/README.md` (novo) | Como rodar e ler o relatório |
 | `docs/runbook.md` (novo) | Operação: aplicar instruções, colaborador novo, rotação do segredo, celular |
@@ -83,7 +84,7 @@ test("o texto real do repositório cabe no limite e começa pela Nessie", () => 
 test("comando usa a CLI oficial com a instância e lê o texto da entrada padrão", () => {
   assert.deepEqual(comandoAplicar("https://work.ness.com.br"), {
     cmd: "pnpm",
-    args: ["cf-os", "api", "--url", "https://work.ness.com.br", "get-admin-api", "set-instance-instructions", "-"],
+    args: ["--dir", "cloudflare-os", "exec", "cf-os", "api", "--url", "https://work.ness.com.br", "get-admin-api", "set-instance-instructions", "-"],
   });
 });
 ```
@@ -127,7 +128,7 @@ import { fileURLToPath } from "node:url";
 import { montarInstrucao, LIMITE } from "./instrucao.mjs";
 
 export function comandoAplicar(url) {
-  return { cmd: "pnpm", args: ["cf-os", "api", "--url", url, "get-admin-api", "set-instance-instructions", "-"] };
+  return { cmd: "pnpm", args: ["--dir", "cloudflare-os", "exec", "cf-os", "api", "--url", url, "get-admin-api", "set-instance-instructions", "-"] };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -136,7 +137,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const dry = process.argv.includes("--dry-run");
   const texto = montarInstrucao();
   const { cmd, args } = comandoAplicar(url);
-  const r = spawnSync(cmd, dry ? [...args.slice(0, 2), "--dry-run", ...args.slice(2)] : args, {
+  const depoisDoApi = args.indexOf("api") + 1;
+  const r = spawnSync(cmd, dry ? [...args.slice(0, depoisDoApi), "--dry-run", ...args.slice(depoisDoApi)] : args, {
     input: texto, stdio: ["pipe", "inherit", "inherit"], shell: process.platform === "win32",
   });
   if (r.status !== 0) process.exit(r.status ?? 1);
@@ -154,13 +156,14 @@ Expected: 4 testes PASS.
 Run: `node ness/contexto/montar.mjs > /tmp/instrucao.txt`
 Expected: stderr `6440 de 8000 caracteres` (valor de 26/11; muda se `soul.md`/`agent.md` mudarem).
 
-- [ ] **Step 6: [Ricardo] Confirmar que a CLI entra como admin**
+- [ ] **Step 6: [Ricardo] Confirmar que a CLI existe e entra como admin**
 
 ```powershell
+pnpm --dir cloudflare-os exec cf-os api --help
 cloudflared access login https://work.ness.com.br
-pnpm cf-os api --url https://work.ness.com.br am-i-admin
+pnpm --dir cloudflare-os exec cf-os api --url https://work.ness.com.br am-i-admin
 ```
-Expected: `true`. Se der `false` ou exit 1: o e-mail do Ricardo não está em `ADMINS` da instalação; corrigir no `deployment.jsonc` antes de seguir.
+Expected: o `--help` lista os comandos (se disser comando desconhecido ou faltar o pacote, rodar `pnpm cf-os install` e repetir); depois `true`. Se der `false` ou exit 1: o e-mail do Ricardo não está em `ADMINS` da instalação; corrigir no `deployment.jsonc` antes de seguir.
 
 - [ ] **Step 7: [Ricardo] Simular e conferir que o texto vai pela entrada padrão**
 
@@ -173,7 +176,7 @@ Expected: a CLI mostra a chamada `setInstanceInstructions` com o texto da instru
 
 ```powershell
 node ness/contexto/aplicar.mjs
-pnpm cf-os api --url https://work.ness.com.br get-admin-api get-settings > settings.json
+pnpm --dir cloudflare-os exec cf-os api --url https://work.ness.com.br get-admin-api get-settings > settings.json
 ```
 Expected: `Aplicado: 6440 de 8000 caracteres`; em `settings.json`, o campo de instruções igual a `node ness/contexto/montar.mjs`. Apagar `settings.json` depois (não versionar).
 
@@ -189,12 +192,13 @@ git commit -m "feat(contexto): instrução aplicada por script pela CLI oficial 
 ### Task 2: Bateria de avaliação da Nessie
 
 **Files:**
-- Create: `ness/avaliacao/perguntas.json`, `ness/avaliacao/pontuar.mjs`, `ness/avaliacao/pontuar.test.mjs`, `ness/avaliacao/rodar.mjs`, `ness/avaliacao/README.md`
+- Create: `ness/avaliacao/perguntas.json`, `ness/avaliacao/pontuar.mjs`, `ness/avaliacao/pontuar.test.mjs`, `ness/avaliacao/cli.mjs`, `ness/avaliacao/cli.test.mjs`, `ness/avaliacao/rodar.mjs`, `ness/avaliacao/README.md`
 - Modify: `.gitignore` (adicionar `ness/avaliacao/resultados/`)
 
 **Interfaces:**
 - Produces: `pontuar(resposta: string, pergunta: Pergunta): { nota: number, falhas: string[] }` (nota de 0 a 1); `resumir(resultados: Resultado[]): { media: number, porCategoria: Record<string, number>, piores: string[] }`.
-- `Pergunta = { id, categoria, texto, exigeFontes?, exigeRecomendacao?, maxLinhas?, contem?: string[], naoContem?: string[] }`
+- `Pergunta = { id, categoria, texto, exigeFontes?, exigeRecomendacao?, maxLinhas?, contem?: string[], naoContem?: string[], naoContemExato?: string[] }` (`contem`/`naoContem` ignoram maiúsculas; `naoContemExato` diferencia, para checar grafia como `n.secops`)
+- `lerSaida(stdout: string): unknown` (JSON da CLI, ou o texto cru se não for JSON); `textoDaResposta(v: unknown): string`
 - `Resultado = { id, categoria, modelo, segundos, resposta, nota, falhas }`
 
 - [ ] **Step 1: Escrever as perguntas**
@@ -214,7 +218,7 @@ git commit -m "feat(contexto): instrução aplicada por script pela CLI oficial 
   { "id": "p10", "categoria": "email", "texto": "E-mails do domínio de um cliente estão caindo no spam. Qual a ordem de verificação?", "exigeRecomendacao": true, "contem": ["SPF", "DKIM", "DMARC"] },
   { "id": "p11", "categoria": "vulnerabilidade", "texto": "A CVE-2021-44228 está sendo explorada ativamente? Qual a urgência?", "exigeFontes": true, "exigeRecomendacao": true, "contem": ["Log4"] },
   { "id": "p12", "categoria": "norma", "texto": "O que o controle 8.8 da ISO 27001:2022 exige?", "exigeFontes": true, "contem": ["vulnerabilidades"] },
-  { "id": "p13", "categoria": "empresa", "texto": "Quais são as ofertas do n.secops?", "exigeFontes": true, "naoContem": ["n.Secops", "N.secops"] },
+  { "id": "p13", "categoria": "empresa", "texto": "Quais são as ofertas do n.secops?", "exigeFontes": true, "naoContemExato": ["n.Secops", "N.secops", "N.SecOps"] },
   { "id": "p14", "categoria": "incidente", "texto": "Monte a nota de chamado para: firewall do cliente reiniciou às 14h10, 12 minutos fora, causa ainda desconhecida.", "contem": ["14h10"], "naoContem": ["!"] },
   { "id": "p15", "categoria": "decisao", "texto": "Devo abrir GMUD para trocar a regra de NAT de um cliente em horário comercial?", "exigeRecomendacao": true, "maxLinhas": 8, "contem": ["GMUD"] },
   { "id": "p16", "categoria": "escrita", "texto": "Escreva um e-mail curto ao cliente avisando janela de manutenção sábado das 22h às 2h.", "naoContem": ["enviei", "foi enviado"] },
@@ -258,6 +262,12 @@ test("contem e naoContem ignoram maiúsculas", () => {
   assert.equal(pontuar("DKIM ok. Enviei.", p).falhas.join(), "naoContem:ENVIEI");
 });
 
+test("naoContemExato diferencia maiúsculas (grafia de marca)", () => {
+  const p = { ...base, naoContemExato: ["n.Secops"] };
+  assert.deepEqual(pontuar("O n.secops cobre SOC.", p), { nota: 1, falhas: [] });
+  assert.equal(pontuar("O n.Secops cobre SOC.", p).falhas.join(), "naoContemExato:n.Secops");
+});
+
 test("resumir dá média geral, por categoria e as 3 piores perguntas", () => {
   const rs = [
     { id: "a", categoria: "rede", nota: 1 }, { id: "b", categoria: "rede", nota: 0.5 },
@@ -289,6 +299,7 @@ export function pontuar(resposta, pergunta) {
   }
   for (const t of pergunta.contem ?? []) checagens.push([`contem:${t}`, tem(resposta, t)]);
   for (const t of pergunta.naoContem ?? []) checagens.push([`naoContem:${t}`, !tem(resposta, t)]);
+  for (const t of pergunta.naoContemExato ?? []) checagens.push([`naoContemExato:${t}`, !resposta.includes(t)]);
   checagens.push(["exclamacao", !resposta.includes("!")]);
   const falhas = checagens.filter(([, ok]) => !ok).map(([nome]) => nome);
   return { nota: (checagens.length - falhas.length) / checagens.length, falhas };
@@ -308,9 +319,62 @@ export function resumir(resultados) {
 - [ ] **Step 5: Rodar e ver passar**
 
 Run: `node --test ness/avaliacao/`
-Expected: 5 testes PASS.
+Expected: 6 testes PASS.
 
-- [ ] **Step 6: Implementar o executor**
+- [ ] **Step 6: Decodificar a saída da CLI (teste primeiro)**
+
+A CLI escreve o resultado para scripts como JSON no stdout (um id vem entre aspas; uma resposta vem com `\n` escapado). Nunca extrair tokens do texto.
+
+`ness/avaliacao/cli.test.mjs`:
+```js
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { lerSaida, textoDaResposta } from "./cli.mjs";
+
+test("lerSaida decodifica JSON", () => {
+  assert.equal(lerSaida('"chat_123"\n'), "chat_123");
+  assert.deepEqual(lerSaida('{"id":"x"}'), { id: "x" });
+});
+
+test("lerSaida devolve o texto cru quando não é JSON", () => {
+  assert.equal(lerSaida("chat_123"), "chat_123");
+  assert.equal(lerSaida(""), "");
+});
+
+test("textoDaResposta aceita string ou objeto com campo de texto", () => {
+  assert.equal(textoDaResposta("Linha 1\nLinha 2"), "Linha 1\nLinha 2");
+  assert.equal(textoDaResposta({ text: "Oi" }), "Oi");
+  assert.equal(textoDaResposta({ reply: "Oi" }), "Oi");
+  assert.equal(textoDaResposta({ content: [{ type: "text", text: "A" }, { type: "text", text: "B" }] }), "A\nB");
+  assert.equal(textoDaResposta({ outro: 1 }), '{"outro":1}');
+});
+```
+
+Run: `node --test ness/avaliacao/`
+Expected: FAIL com `Cannot find module '.../cli.mjs'`.
+
+`ness/avaliacao/cli.mjs`:
+```js
+// Decodifica o que a CLI oficial (cf-os api) escreve no stdout: JSON para scripts, texto cru se não for.
+export function lerSaida(stdout) {
+  const t = stdout.trim();
+  if (!t) return "";
+  try { return JSON.parse(t); } catch { return t; }
+}
+
+export function textoDaResposta(v) {
+  if (typeof v === "string") return v;
+  if (v && typeof v.text === "string") return v.text;
+  if (v && typeof v.reply === "string") return v.reply;
+  if (v && Array.isArray(v.content)) return v.content.filter((c) => c?.type === "text").map((c) => c.text).join("\n");
+  return JSON.stringify(v);
+}
+```
+
+Run: `node --test ness/avaliacao/`
+Expected: 9 testes PASS (6 do pontuador + 3 da CLI).
+
+- [ ] **Step 7: Implementar o executor**
 
 `ness/avaliacao/rodar.mjs`:
 ```js
@@ -319,6 +383,7 @@ Expected: 5 testes PASS.
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
 import { pontuar, resumir } from "./pontuar.mjs";
+import { lerSaida, textoDaResposta } from "./cli.mjs";
 
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
 const url = arg("--url", "https://work.ness.com.br");
@@ -328,9 +393,9 @@ const so = arg("--so")?.split(",");
 if (!ws || !modelo) { console.error("Informe --workspace e --modelo (ids de `list-models`)."); process.exit(2); }
 
 function api(...args) {
-  const r = spawnSync("pnpm", ["cf-os", "api", "--url", url, ...args], { encoding: "utf8", shell: process.platform === "win32" });
+  const r = spawnSync("pnpm", ["--dir", "cloudflare-os", "exec", "cf-os", "api", "--url", url, ...args], { encoding: "utf8", shell: process.platform === "win32" });
   if (r.status !== 0) throw new Error(`cf-os api ${args[2] ?? args[0]} falhou: ${r.stderr.trim()}`);
-  return { out: r.stdout.trim(), err: r.stderr.trim() };
+  return lerSaida(r.stdout);
 }
 
 const perguntas = JSON.parse(readFileSync(new URL("./perguntas.json", import.meta.url), "utf8")).filter((p) => !so || so.includes(p.id));
@@ -342,9 +407,9 @@ const resultados = [];
 
 for (const p of perguntas) {
   const t0 = Date.now();
-  const criado = api("open-workspace", ws, "new-chat", p.texto, modelo);
-  const chatId = (criado.out || criado.err).split(/\s+/).pop();
-  const { out: resposta } = api("open-workspace", ws, "wait-for-agent", chatId, "--timeout", "300");
+  const chatId = api("open-workspace", ws, "new-chat", p.texto, modelo);
+  if (typeof chatId !== "string" || !chatId) throw new Error(`new-chat não devolveu um id: ${JSON.stringify(chatId)}`);
+  const resposta = textoDaResposta(api("open-workspace", ws, "wait-for-agent", chatId, "--timeout", "300"));
   const r = { id: p.id, categoria: p.categoria, modelo, chatId, segundos: Math.round((Date.now() - t0) / 1000), resposta, ...pontuar(resposta, p) };
   resultados.push(r);
   appendFileSync(jsonl, JSON.stringify(r) + "\n");
@@ -360,13 +425,13 @@ const linhas = [
   `Piores: ${s.piores.join(", ")}`, "",
   "| Pergunta | Nota | Falhas | Chat |", "|---|---|---|---|",
   ...resultados.map((r) => `| ${r.id} | ${r.nota.toFixed(2)} | ${r.falhas.join(" ") || "—"} | ${r.chatId} |`), "",
-  "Custo: ler no painel do AI Gateway (gateway `default`) o intervalo desta rodada e anotar aqui.",
+  "Custo: ler no painel do AI Gateway (gateway `agentos-ai`, o de `deployment.jsonc`) o intervalo desta rodada e anotar aqui.",
 ];
 writeFileSync(new URL(`${nome}.md`, pasta), linhas.join("\n"));
 console.error(`Relatório: ness/avaliacao/resultados/${nome}.md`);
 ```
 
-- [ ] **Step 7: README e .gitignore**
+- [ ] **Step 8: README e .gitignore**
 
 `ness/avaliacao/README.md`:
 ```markdown
@@ -375,11 +440,11 @@ console.error(`Relatório: ness/avaliacao/resultados/${nome}.md`);
 20 perguntas de referência (`perguntas.json`) rodadas contra o ness.work pela CLI oficial. Cada resposta é pontuada por regras simples (fontes, recomendação, tamanho, termos obrigatórios e proibidos, sem exclamação). Nota é sinal, não veredito: ler as respostas das piores perguntas.
 
 1. `cloudflared access login https://work.ness.com.br`
-2. Uma vez: criar o espaço de avaliação — `pnpm cf-os api --url https://work.ness.com.br new-workspace set-title "Avaliação Nessie"` (o id sai no stderr).
-3. Ids dos modelos: `pnpm cf-os api --url https://work.ness.com.br open-workspace <ws> list-models`.
+2. Uma vez: criar o espaço de avaliação e ligar as 3 conexões nele — `pnpm --dir cloudflare-os exec cf-os api --url https://work.ness.com.br new-workspace set-title "Avaliação Nessie"` (o id sai no stderr). Abrir esse espaço no navegador e, numa conversa, pedir "o que tenho na agenda hoje?", "minhas tarefas no To Do" e uma pergunta ao ness.know, aprovando cada conexão pedida (Microsoft 365, Servidor MCP `m365.ness.com.br`, ness. (conhecimento)). Sem isso, p02–p04 medem a falta de conexão, não o modelo.
+3. Ids dos modelos: `pnpm --dir cloudflare-os exec cf-os api --url https://work.ness.com.br open-workspace <ws> list-models`.
 4. Rodar: `node ness/avaliacao/rodar.mjs --workspace <ws> --modelo <id>` (≈ 20–40 min).
 5. Relatório em `ness/avaliacao/resultados/` (fora do git: contém respostas com dados do dia).
-6. Custo: painel do AI Gateway, intervalo da rodada.
+6. Custo: painel do AI Gateway, gateway `agentos-ai` (o de `deployment.jsonc`; o `default` só serve à busca na web), intervalo da rodada.
 
 Rodar de novo a cada mudança de instrução, skill ou modelo.
 ```
@@ -389,14 +454,18 @@ Append em `.gitignore`:
 ness/avaliacao/resultados/
 ```
 
-- [ ] **Step 8: [Ricardo] Rodada de teste com 2 perguntas**
+- [ ] **Step 9: [Ricardo] Criar o espaço de avaliação e ligar as conexões**
+
+Seguir os itens 1 e 2 do `ness/avaliacao/README.md`. Expected: no espaço "Avaliação Nessie", as três respostas de teste trazem agenda, tarefas e uma resposta com fonte do ness.know, sem pedir conexão.
+
+- [ ] **Step 10: [Ricardo] Rodada de teste com 2 perguntas**
 
 ```powershell
 node ness/avaliacao/rodar.mjs --workspace <ws> --modelo <id-do-modelo-atual> --so p01,p05
 ```
-Expected: duas linhas `p01 …` e `p05 …` e o relatório. Se `new-chat` não devolver o id do chat no stdout/stderr como último token, ajustar a extração de `chatId` em `rodar.mjs` conforme a saída real (a CLI documenta: "new-chat prints the chat id") e repetir.
+Expected: duas linhas `p01 …` e `p05 …` e o relatório com o texto da resposta legível (quebras de linha reais). Se `new-chat` falhar com "não devolveu um id" ou a resposta vier como objeto JSON, rodar o comando à mão (`pnpm --dir cloudflare-os exec cf-os api --url https://work.ness.com.br open-workspace <ws> new-chat "teste" <id>`), ver a forma do JSON e ajustar `textoDaResposta`/a leitura do id com um teste novo em `cli.test.mjs` antes de repetir.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
 git add ness/avaliacao/ .gitignore
@@ -414,7 +483,7 @@ Contexto: o Cloudflare OS já suporta o Auto Router do AI Gateway como provedor 
 
 - [ ] **Step 1: [Ricardo] Limite de gasto no AI Gateway**
 
-Painel Cloudflare → AI → AI Gateway → gateway `default` → Settings: ligar limite de gasto/alertas (valor decidido pelo Ricardo). Expected: limite visível no gateway.
+Painel Cloudflare → AI → AI Gateway → gateway `agentos-ai` → Settings: ligar limite de gasto/alertas (valor decidido pelo Ricardo). Expected: limite visível no gateway.
 
 - [ ] **Step 2: [Ricardo] Ligar o Auto Router restrito a Workers AI**
 
@@ -429,7 +498,7 @@ node ness/avaliacao/rodar.mjs --workspace <ws> --modelo <id do Kimi K2.6>
 node ness/avaliacao/rodar.mjs --workspace <ws> --modelo <id do DeepSeek V4 Pro>
 node ness/avaliacao/rodar.mjs --workspace <ws> --modelo cloudflare/auto
 ```
-Anotar em cada relatório o custo do intervalo (painel do AI Gateway). Para o Auto Router, anotar também quais modelos ele escolheu (logs do gateway, cabeçalho `cf-aig-routed-model`).
+Anotar em cada relatório o custo do intervalo (painel do AI Gateway, gateway `agentos-ai`). Para o Auto Router, anotar também quais modelos ele escolheu (logs do gateway, cabeçalho `cf-aig-routed-model`).
 
 - [ ] **Step 4: Consolidar a comparação**
 
@@ -563,7 +632,7 @@ git commit -m "docs: runbook de operação do ness.work"
 
 ```bash
 grep -nE "^\s+[a-zA-Z]+\(" cloudflare-os/packages/gatekeeper-context/src/*.ts | grep -iE "skill|upload|collection" | head -30
-pnpm cf-os api search "upload skill to collection"
+pnpm --dir cloudflare-os exec cf-os api search "upload skill to collection"
 ```
 Expected: ou um método de envio/atualização de skill alcançável pela CLI (`get-gatekeeper-app context ...`), ou a confirmação de que só existe pela tela.
 
