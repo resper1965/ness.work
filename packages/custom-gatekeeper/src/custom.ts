@@ -60,11 +60,36 @@ export function describeCustomAccount(): AccountDescription {
 
 type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
-/** Cliente mínimo do MCP do ness.know (JSON-RPC sem sessão, chave Bearer). */
+/** Versão do protocolo MCP que este cliente pede no initialize. */
+export const MCP_VERSAO = "2025-06-18";
+
+type RespostaRpc = { id?: unknown; result?: Record<string, unknown>; error?: { message?: string } };
+
+/** Lê a resposta JSON-RPC em JSON puro ou em SSE (Streamable HTTP), pelo id pedido. */
+export async function lerResposta(r: Response, id: number): Promise<RespostaRpc | null> {
+  const texto = await r.text().catch(() => "");
+  if (!(r.headers.get("content-type") ?? "").includes("text/event-stream")) {
+    try { return JSON.parse(texto) as RespostaRpc; } catch { return null; }
+  }
+  for (const evento of texto.split(/\r?\n\r?\n/)) {
+    const dados = evento.split(/\r?\n/).filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trimStart()).join("\n");
+    if (!dados) continue;
+    try {
+      const msg = JSON.parse(dados) as RespostaRpc;
+      if (msg.id === id) return msg;
+    } catch { /* evento que não é JSON: ignora */ }
+  }
+  return null;
+}
+
+/** Cliente mínimo do MCP do ness.know (Streamable HTTP, chave Bearer). */
 export class ClienteKnow {
   #id = 0;
   #ferramentas: FerramentaKnow[] | null = null;
   #somenteLeitura = new Set<string>();
+  #iniciado: Promise<void> | null = null;
+  #sessao: string | null = null;
+  #versao = MCP_VERSAO;
 
   constructor(
     readonly url: string,
@@ -72,16 +97,56 @@ export class ClienteKnow {
     readonly buscar: Fetch = (u, i) => fetch(u, i),
   ) {}
 
-  async #rpc(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  #cabecalhos(): Record<string, string> {
+    const h: Record<string, string> = {
+      "content-type": "application/json",
+      accept: "application/json, text/event-stream",
+      authorization: `Bearer ${this.token}`,
+    };
+    if (this.#iniciado) h["mcp-protocol-version"] = this.#versao;
+    if (this.#sessao) h["mcp-session-id"] = this.#sessao;
+    return h;
+  }
+
+  async #enviar(method: string, params: Record<string, unknown>): Promise<{ r: Response; corpo: RespostaRpc | null }> {
     if (!this.token) throw new Error("ness.know sem chave de serviço: configure o segredo NESS_KNOW_TOKEN.");
+    const id = ++this.#id;
     const r = await this.buscar(this.url, {
       method: "POST",
-      headers: { "content-type": "application/json", accept: "application/json", authorization: `Bearer ${this.token}` },
-      body: JSON.stringify({ jsonrpc: "2.0", id: ++this.#id, method, params }),
+      headers: this.#cabecalhos(),
+      body: JSON.stringify({ jsonrpc: "2.0", id, method, params }),
     });
-    const corpo = (await r.json().catch(() => null)) as { result?: Record<string, unknown>; error?: { message?: string } } | null;
+    const corpo = await lerResposta(r, id);
     if (!r.ok || !corpo || corpo.error) throw new Error(`ness.know respondeu ${r.status}: ${corpo?.error?.message ?? "sem detalhe"}`);
-    return corpo.result ?? {};
+    return { r, corpo };
+  }
+
+  /** Ciclo de vida do MCP: initialize, guarda sessão e versão, notifications/initialized. */
+  #iniciar(): Promise<void> {
+    this.#iniciado ??= (async () => {
+      const { r, corpo } = await this.#enviar("initialize", {
+        protocolVersion: MCP_VERSAO,
+        capabilities: {},
+        clientInfo: { name: "ness.work", version: "1" },
+      });
+      this.#sessao = r.headers.get("mcp-session-id");
+      const v = corpo?.result?.protocolVersion;
+      if (typeof v === "string") this.#versao = v;
+      await this.buscar(this.url, {
+        method: "POST",
+        headers: this.#cabecalhos(),
+        body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }),
+      });
+    })().catch((e) => {
+      this.#iniciado = null; // próxima chamada tenta de novo
+      throw e;
+    });
+    return this.#iniciado;
+  }
+
+  async #rpc(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+    await this.#iniciar();
+    return (await this.#enviar(method, params)).corpo?.result ?? {};
   }
 
   async ferramentas(): Promise<FerramentaKnow[]> {
