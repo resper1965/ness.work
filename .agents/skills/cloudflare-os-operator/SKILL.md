@@ -260,7 +260,7 @@ A secret existing does not prove its scope, billing, or account is correct. One 
 
 ### 7. Review The Custom Gatekeeper
 
-The starter example is credential-free, read-only, auto-provisioned, and permissive to observers because it returns identical low-stakes text to every authenticated user. Those choices are unsafe defaults for account-specific, tenant-specific, or confidential data.
+In this deployment it is ness.know: read-only, auto-provisioned, and authenticated to the ness.know MCP with one service key (`NESS_KNOW_TOKEN` secret on `agentos-gk-custom`) shared by every user. That is acceptable only because ness.know holds external, non-confidential knowledge with no RBAC; never point it at account-specific, tenant-specific, or confidential data. Before enabling, confirm the secret is set and review the ambient authority of that key.
 
 A deployment that does not want it sets `customGatekeeper.enabled: false`, and no Worker or binding is generated for it. Otherwise, keep the Custom Gatekeeper disabled in `/admin` until its provenance and authority are reviewed. If it has been customized, load the upstream `write-gatekeeper` skill and stop for operator approval of the agent-facing API before implementation or enablement. Review:
 

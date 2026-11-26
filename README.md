@@ -114,7 +114,7 @@ Backend error reporting is enabled without a vendor account. Explicit upstream i
 - Open the router's hostname and confirm Access signs in with the expected identity, and that it is the only public route into the deployment.
 - Open `/admin`, confirm the email is an administrator, and set Context, Scheduler, Web Search and Custom Gatekeepers to disabled, optional, or enabled.
 - If Context Artifacts is enabled, create a Git-backed collection and confirm its repository can be populated and refreshed.
-- Enable the Custom Gatekeeper, ask for deployment information, and confirm its read appears as an observation.
+- Set the `NESS_KNOW_TOKEN` secret on `agentos-gk-custom`, enable the Custom Gatekeeper (ness.know), ask a question that needs the knowledge base, and confirm the `NESS_KNOW` read appears as an observation.
 - Open the Error Reporter Worker's [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/) and verify its structured `error_report` query surface.
 - Ask an agent to schedule something a few minutes out, and confirm it runs — that exercises the Scheduler Gatekeeper end to end.
 - Ask an agent to search the web for something recent, and confirm it returns results. That exercises the Web Search Gatekeeper and the AI Gateway it searches through: `aiGateway.name` when it is in this account, otherwise the account's `default` gateway. Searches need AI Gateway credits or a Ceramic key on that gateway, not just the free Workers AI allowance: see [Workers and routing](docs/customization.md#workers-and-routing).

@@ -221,13 +221,13 @@ The starter enables structured custom logs and a private console-backed Error Re
 
 Keep deployment-owned Gatekeepers under `packages/`, outside the `cloudflare-os` submodule. `packages/cf-os/src/core/deployment.ts` binds this repository's example as `GATEKEEPER_CUSTOM` and Context as `GATEKEEPER_CONTEXT`, twice each: on the Workshop with the `GatekeeperVendor` entrypoint for RPC, and on the router with no entrypoint, where the binding name is what routes `/gatekeeper/custom` and `/gatekeeper/context` to it. A Gatekeeper that serves HTTP — an OAuth redirect, for instance — needs both.
 
-The minimal example flow is:
+In this deployment the custom Gatekeeper is ness.know (`packages/custom-gatekeeper/README.md`):
 
-1. `types.d.ts` defines the API visible to TypeScript callers.
-2. `CustomSessionImpl.getDeploymentInfo()` authorizes an observation before returning data.
-3. `CustomGatekeeper` reads deployment values and creates the session.
-4. `CustomAccount` exposes that session as a singleton.
-5. `GatekeeperVendor` advertises credential-free auto-provisioning.
+1. `types.d.ts` defines the `NessKnowSession` API visible to TypeScript callers, including the usage rules.
+2. `CustomSessionImpl.consultar()` authorizes an observation before each read-only call to the ness.know MCP.
+3. `CustomGatekeeper` reads the `NESS_KNOW_TOKEN` secret and creates the session; without it every call fails with a clear message.
+4. `CustomAccount` exposes that session as a singleton bound as `NESS_KNOW`.
+5. `GatekeeperVendor` advertises auto-provisioning, so it is in every chat without a connection request.
 6. The Workshop service binding makes the vendor available to Cloudflare OS.
 
 Read the [package guide](../packages/custom-gatekeeper/README.md) and upstream [`write-gatekeeper` skill](https://github.com/cloudflare/cloudflare-os/blob/main/.agents/skills/write-gatekeeper/SKILL.md) before adding OAuth, URL-scoped resources, writes, simulations, hooks, configurator UI, or stricter observer verification.
