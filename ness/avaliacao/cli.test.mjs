@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { lerSaida, textoDaResposta, estadoDaResposta } from "./cli.mjs";
+import { lerSaida, textoDaResposta, estadoDaResposta, mapaDeConexoes, gatekeeperPara } from "./cli.mjs";
 
 test("lerSaida decodifica JSON", () => {
   assert.equal(lerSaida('"chat_123"\n'), "chat_123");
@@ -38,4 +38,17 @@ test("estadoDaResposta separa resposta, pedido de conexão, erro e vazio", () =>
   assert.equal(estadoDaResposta({ type: "connectionRequest", requestId: "1:x" }), "conexao");
   assert.equal(estadoDaResposta({ type: "error", message: "410: deprecated" }), "erro");
   assert.equal(estadoDaResposta(null), "vazio");
+});
+
+test("mapaDeConexoes e gatekeeperPara reaproveitam a conexão já aceita na mesma conta", () => {
+  const msgs = [
+    { type: "connectionRequest", state: "accepted", gatekeeperId: 11, vendorId: "microsoft", resourceUrl: "https://outlook.office.com/calendar/*", resourceUrlPattern: "https://outlook.office.com/calendar/*" },
+    { type: "connectionRequest", state: "pending", vendorId: "mcp", resourceUrlPattern: "https://*" },
+    { type: "connectionRequest", state: "accepted", gatekeeperId: 12, vendorId: "mcpportal", resourceUrl: "https://mcp.ness.com.br/mcp#server=nessknow", resourceUrlPattern: "https://*" },
+    { type: "message", message: "oi" },
+  ];
+  const mapa = mapaDeConexoes(msgs);
+  assert.equal(gatekeeperPara({ vendorId: "microsoft", resourceUrlPattern: "https://outlook.office.com/calendar/*" }, mapa), 11);
+  assert.equal(gatekeeperPara({ vendorId: "mcpportal", resourceUrl: "https://mcp.ness.com.br/mcp#server=nessknow" }, mapa), 12);
+  assert.equal(gatekeeperPara({ vendorId: "mcp", resourceUrlPattern: "https://*" }, mapa), null);
 });

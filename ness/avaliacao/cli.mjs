@@ -28,3 +28,25 @@ export function estadoDaResposta(v) {
   if (v.type === "error") return "erro";
   return "outro";
 }
+
+// Chave de uma conexão: o recurso exato quando o agente o informou, senão o padrão do recurso.
+export function chaveConexao(m) {
+  return m.resourceUrl ? `${m.vendorId}|${m.resourceUrl}` : `${m.vendorId}|${m.resourceUrlPattern ?? ""}`;
+}
+
+// A partir das mensagens das conversas do espaço, mapeia cada conexão já aceita pela pessoa ao
+// gatekeeper criado (o mais recente vence), por recurso exato e por padrão do recurso.
+export function mapaDeConexoes(mensagens) {
+  const mapa = {};
+  for (const m of mensagens) {
+    if (m?.type !== "connectionRequest" || m.state !== "accepted" || typeof m.gatekeeperId !== "number") continue;
+    mapa[chaveConexao(m)] = m.gatekeeperId;
+    if (m.resourceUrlPattern) mapa[`${m.vendorId}|${m.resourceUrlPattern}`] = m.gatekeeperId;
+  }
+  return mapa;
+}
+
+// O gatekeeper a entregar para um pedido de conexão pendente, ou null se a pessoa nunca o aceitou.
+export function gatekeeperPara(pedido, mapa) {
+  return mapa[chaveConexao(pedido)] ?? (pedido.resourceUrlPattern ? mapa[`${pedido.vendorId}|${pedido.resourceUrlPattern}`] : undefined) ?? null;
+}

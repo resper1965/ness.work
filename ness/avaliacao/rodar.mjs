@@ -3,7 +3,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync, appendFileSync } from "node:fs";
 import { pontuar, resumir } from "./pontuar.mjs";
-import { lerSaida, textoDaResposta, estadoDaResposta } from "./cli.mjs";
+import { lerSaida, textoDaResposta, estadoDaResposta, mapaDeConexoes, gatekeeperPara } from "./cli.mjs";
 import { comandoCfOs } from "../cfos.mjs";
 
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : d; };
@@ -27,6 +27,17 @@ const nome = `${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}-${m
 const jsonl = new URL(`${nome}.jsonl`, pasta);
 const resultados = [];
 
+// Conexões que a pessoa já aceitou neste espaço: a bateria as entrega de novo a cada conversa nova
+// (no ness.work, cada conversa pede o vínculo outra vez), em vez de parar no pedido de conexão.
+function lerMapa() {
+  const chats = api("open-workspace", ws, "list-chats");
+  const msgs = (Array.isArray(chats) ? chats : []).flatMap((c) => api("open-workspace", ws, "get-chat-history", String(c.id))?.messages ?? []);
+  return mapaDeConexoes(msgs);
+}
+let mapa = {};
+try { mapa = lerMapa(); } catch (e) { console.error(`Não consegui ler as conexões já aceitas: ${e.message}`); }
+console.error(`Conexões reaproveitáveis neste espaço: ${Object.keys(mapa).length}`);
+
 for (const p of perguntas) {
   const t0 = Date.now();
   let r;
@@ -35,7 +46,13 @@ for (const p of perguntas) {
     if (!((typeof chatId === "number" && Number.isInteger(chatId)) || (typeof chatId === "string" && chatId))) {
       throw new Error(`new-chat não devolveu um id: ${JSON.stringify(chatId)}`);
     }
-    const bruto = api("open-workspace", ws, "wait-for-agent", String(chatId), "--timeout", "300");
+    let bruto = api("open-workspace", ws, "wait-for-agent", String(chatId), "--timeout", "300");
+    for (let i = 0; i < 4 && bruto?.type === "connectionRequest"; i++) {
+      const gk = gatekeeperPara(bruto, mapa);
+      if (gk === null) break;
+      api("open-workspace", ws, "accept-connection-request", bruto.requestId, JSON.stringify({ gatekeeperId: gk }));
+      bruto = api("open-workspace", ws, "wait-for-agent", String(chatId), "--timeout", "300");
+    }
     const estado = estadoDaResposta(bruto);
     const resposta = textoDaResposta(bruto);
     const nota = estado === "ok" ? pontuar(resposta, p) : { nota: 0, falhas: [estado] };
