@@ -1,6 +1,6 @@
 ---
 name: conectores-ness
-description: Como ler e escrever no Microsoft 365 (e-mail, agenda, arquivos), no Planner/To Do/contatos (Servidor MCP ness-m365) e no conhecimento da ness. (ness.know e ness.brain) a partir do código de um espaço do ness.work. Use antes de qualquer pedido sobre e-mails, agenda, reuniões, tarefas, Planner, To Do, contatos, normas ou dados da empresa.
+description: Como ler e escrever no Microsoft 365 (e-mail, agenda, arquivos), no Planner/To Do/contatos (Servidor MCP ness-m365) e no conhecimento da ness. (ness.know, sempre disponível, e ness.brain) a partir do código de um espaço do ness.work. Use antes de qualquer pedido sobre e-mails, agenda, reuniões, tarefas, Planner, To Do, contatos, normas ou dados da empresa.
 ---
 
 # Conectores da ness.
@@ -11,7 +11,8 @@ description: Como ler e escrever no Microsoft 365 (e-mail, agenda, arquivos), no
 |---|---|---|
 | E-mail, agenda, SharePoint/OneDrive (só leitura) | Microsoft 365 | `microsoft` (Outlook, Calendário, SharePoint) |
 | Planner, To Do, contatos | Servidor MCP, conta `https://m365.ness.com.br/mcp` | `mcp` |
-| Normas (ness.know) e empresa (ness.brain) | ness. (conhecimento) | `mcpportal` |
+| Conhecimento externo (ness.know) | nenhuma: já está em toda conversa | `NESS_KNOW` |
+| Empresa (ness.brain) | ness. (conhecimento) | `mcpportal` |
 
 Planner, To Do e contatos **nunca** estão na conexão Microsoft 365.
 
@@ -110,16 +111,27 @@ export default async function (self, env, ctx) {
 
 ## 7. Conhecimento (ness.know e ness.brain)
 
-Pelo binding do portal (`mcpportal`). Liste as ferramentas antes de chamar:
+**ness.know** (normas, documentação oficial, CVE/KEV, indicadores, MITRE, Wazuh, status de provedores) já está em toda conversa, sem conexão:
 
 ```ts
 export default async function (self, env, ctx) {
-  const k = env.NESS_CONHECIMENTO; // o nome real vem do passo 2
-  console.log(await k.listTools({ search: "norma" }));
+  const k = env.NESS_KNOW;
+  console.log((await k.ferramentas()).map((f) => f.nome));
+  const r = await k.consultar("cve_consultar", { cves: ["CVE-2021-44228"] });
+  console.log(r.erro ? "falhou: " + r.texto : r.texto);
 }
 ```
 
-Portfólio, ofertas e dados da empresa vêm só do ness.brain. Normas e standards, do ness.know.
+**ness.brain** (empresa) vem pelo binding do portal (`mcpportal`). Liste as ferramentas antes de chamar:
+
+```ts
+export default async function (self, env, ctx) {
+  const b = env.NESS_CONHECIMENTO; // o nome real vem do passo 2
+  console.log(await b.listTools({ search: "cliente" }));
+}
+```
+
+Portfólio, ofertas e dados da empresa vêm só do ness.brain. Normas e conhecimento externo, do ness.know.
 
 ### Ferramentas técnicas do ness.know: quando usar cada uma
 

@@ -4,16 +4,31 @@ Skills que o agente do ness.work carrega sob demanda. Ficam aqui como fonte; **o
 
 ## Instalar ou atualizar
 
-1. No ness.work: **Skills → coleção "ness"** (visibilidade "Everyone", para valer para todos). Se a coleção não existir, crie em **Add → Add collection**.
-2. **Add → Add skill**, com o mesmo `name` do cabeçalho (ex.: `conectores-ness`) e a `description` do cabeçalho.
-3. Abra o `SKILL.md` da skill, clique em **Edit**, cole o arquivo inteiro daqui e salve.
-4. Teste numa conversa nova com um pedido que a skill cobre.
+Por script (admins; não usa o editor da tela), em `C:\dev\cf-os-ness`:
 
-Ao mudar um `SKILL.md` aqui, repita o passo 3. O editor de Skills roda num quadro isolado, então colar precisa ser feito à mão (o agente não consegue).
+```powershell
+cloudflared access login https://work.ness.com.br
+node ness/skills/aplicar.mjs --dry-run     # mostra o que faria
+node ness/skills/aplicar.mjs               # todas; ou --so diagnostico-rede,entregabilidade-email
+```
+
+Cada pasta com `SKILL.md` vira uma skill na coleção **"ness"** (visibilidade "Everyone"): cria se não
+existe, atualiza se já existe. Teste numa conversa nova com um pedido que a skill cobre.
+
+Alternativa manual: Skills → coleção "ness" → Add → Upload skills. Não digite o conteúdo no editor de
+Skills: ele acrescenta recuo e continua listas sozinho e corrompe o Markdown.
 
 ## Skills
 
 | Skill | Para quê |
 |---|---|
-| `conectores-ness` | Ler e escrever no Microsoft 365, no Planner/To Do/contatos (`ness-m365`) e no conhecimento (ness.know, ness.brain) |
-| `ness-design-system` | Marca e formatos (fonte: skill da conta e NESS Design System) — reenviar à coleção "ness" |
+| `conectores-ness` | Ler e escrever no Microsoft 365, no Planner/To Do/contatos (`ness-m365`) e consultar o ness.know (`NESS_KNOW`) e o ness.brain |
+| `ness-design-system` | Marca e formatos (resumo do NESS Design System) |
+| `ness-proposta` | Rascunho de proposta comercial no Documento ness., sem valores |
+| `diagnostico-rede` | Rede: DNS, DHCP, VPN, Wi-Fi, firewall, MTU |
+| `diagnostico-microsoft-365` | Entra ID, acesso condicional, Exchange Online, Teams, OneDrive, SharePoint |
+| `diagnostico-google-workspace` | Login, Gmail, Drive, Meet e Calendar |
+| `entregabilidade-email` | SPF, DKIM, DMARC, MX, cabeçalhos e NDR |
+| `relatorio-incidente` | RCA e pós-incidente no Documento ness. |
+
+Financeiras (briefing, caixa, fechamento, margem) ficam no ness.brain e não entram nesta coleção.
