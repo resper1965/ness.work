@@ -479,6 +479,12 @@ git commit -m "feat(avaliacao): bateria de 20 perguntas de referência da Nessie
 **Files:**
 - Modify: `docs/runbook.md` (seção "Modelo"; criado na Task 5 — se a Task 5 ainda não rodou, criar o arquivo só com esta seção)
 
+Decisão de desenho (26/11, delegada pelo Ricardo): o ness.work usa o AI Gateway `agentos-ai` assim:
+1. **Modelo padrão das conversas: Auto Router** (`cloudflare/auto`), com o pool restrito a modelos do Workers AI. Ele escolhe o modelo por dificuldade, mantém um modelo por turno (cache) e registra qual modelo atendeu e por quê.
+2. **Controle de custo no próprio gateway:** limite de gasto e alerta no `agentos-ai`.
+3. **Dynamic Routing fica fora por ora:** com 34 pessoas, o limite do gateway basta; teto por pessoa e A/B só se o uso real mostrar necessidade (o ness.work já manda `cf-aig-metadata` com o usuário e a origem, então dá para fazer depois sem mudar código).
+4. **Regra de troca:** o Auto Router só vira padrão se, na bateria, acertar no mínimo o mesmo que o melhor modelo fixo (tolerância de 5 pontos percentuais) com custo igual ou menor. Senão, o padrão é o melhor modelo fixo.
+
 Contexto: o Cloudflare OS já suporta o Auto Router do AI Gateway como provedor `cloudflare-auto-router` (modelo `cloudflare/auto`), com um "pool" configurável de modelos permitidos; ele manda o `cf-aig-session-id` da conversa para manter um modelo por turno e o cache.
 
 - [ ] **Step 1: [Ricardo] Limite de gasto no AI Gateway**
