@@ -5,8 +5,13 @@ export function lerSaida(stdout) {
   try { return JSON.parse(t); } catch { return t; }
 }
 
+// wait-for-agent devolve um AiChatMessage (texto em `message` quando type é "message") ou null se o
+// agente não escreveu nada; outros tipos de registro viram uma marca legível, para a falha aparecer.
 export function textoDaResposta(v) {
+  if (v === null || v === undefined || v === "") return "";
   if (typeof v === "string") return v;
+  if (v.type === "message" && typeof v.message === "string") return v.message;
+  if (typeof v.type === "string" && v.type !== "message") return `[registro do tipo ${v.type}] ${JSON.stringify(v)}`;
   if (v && typeof v.text === "string") return v.text;
   if (v && typeof v.reply === "string") return v.reply;
   if (v && Array.isArray(v.content)) return v.content.filter((c) => c?.type === "text").map((c) => c.text).join("\n");

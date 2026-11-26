@@ -30,8 +30,11 @@ const resultados = [];
 for (const p of perguntas) {
   const t0 = Date.now();
   const chatId = api("open-workspace", ws, "new-chat", p.texto, modelo);
-  if (typeof chatId !== "string" || !chatId) throw new Error(`new-chat não devolveu um id: ${JSON.stringify(chatId)}`);
-  const resposta = textoDaResposta(api("open-workspace", ws, "wait-for-agent", chatId, "--timeout", "300"));
+  if (!((typeof chatId === "number" && Number.isInteger(chatId)) || (typeof chatId === "string" && chatId))) {
+    throw new Error(`new-chat não devolveu um id: ${JSON.stringify(chatId)}`);
+  }
+  const resposta = textoDaResposta(api("open-workspace", ws, "wait-for-agent", String(chatId), "--timeout", "300"));
+  if (!resposta) console.error(`${p.id}: o agente não escreveu resposta`);
   const r = { id: p.id, categoria: p.categoria, modelo, chatId, segundos: Math.round((Date.now() - t0) / 1000), resposta, ...pontuar(resposta, p) };
   resultados.push(r);
   appendFileSync(jsonl, JSON.stringify(r) + "\n");
