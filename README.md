@@ -1,3 +1,5 @@
+> **ness.work:** operação do dia a dia em [docs/runbook.md](docs/runbook.md); avaliação da Nessie em [ness/avaliacao/README.md](ness/avaliacao/README.md).
+
 <p align="center">
   <img src="docs/assets/cloudflareOS.svg" alt="Cloudflare OS" width="480">
 </p>
