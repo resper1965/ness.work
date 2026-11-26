@@ -4,17 +4,25 @@ Skills que o agente do ness.work carrega sob demanda. Ficam aqui como fonte; **o
 
 ## Instalar ou atualizar
 
-1. No ness.work: **Skills → coleção "ness"** (visibilidade "Everyone", para valer para todos).
-2. **Add → Upload skills → Choose files** e escolha os arquivos `<nome-da-skill>.md` (cópia de cada `SKILL.md` com o nome da skill) ou **Choose folder** com esta pasta. Cada arquivo vira uma skill; confira nome e descrição na lista antes de **Upload**. Para atualizar uma skill que já existe, apague a antiga antes ou edite o `SKILL.md` dela.
-3. Teste numa conversa nova com um pedido que a skill cobre.
+Por script (admins; não usa o editor da tela), em `C:\dev\cf-os-ness`:
 
-Não digite o conteúdo no editor de Skills: ele acrescenta recuo e continua listas sozinho e corrompe o Markdown.
+```powershell
+cloudflared access login https://work.ness.com.br
+node ness/skills/aplicar.mjs --dry-run     # mostra o que faria
+node ness/skills/aplicar.mjs               # todas; ou --so diagnostico-rede,entregabilidade-email
+```
+
+Cada pasta com `SKILL.md` vira uma skill na coleção **"ness"** (visibilidade "Everyone"): cria se não
+existe, atualiza se já existe. Teste numa conversa nova com um pedido que a skill cobre.
+
+Alternativa manual: Skills → coleção "ness" → Add → Upload skills. Não digite o conteúdo no editor de
+Skills: ele acrescenta recuo e continua listas sozinho e corrompe o Markdown.
 
 ## Skills
 
 | Skill | Para quê |
 |---|---|
-| `conectores-ness` | Ler e escrever no Microsoft 365, no Planner/To Do/contatos (`ness-m365`) e no conhecimento (ness.know, ness.brain) |
+| `conectores-ness` | Ler e escrever no Microsoft 365, no Planner/To Do/contatos (`ness-m365`) e consultar o ness.know (`NESS_KNOW`) e o ness.brain |
 | `ness-design-system` | Marca e formatos (resumo do NESS Design System) |
 | `ness-proposta` | Rascunho de proposta comercial no Documento ness., sem valores |
 | `diagnostico-rede` | Rede: DNS, DHCP, VPN, Wi-Fi, firewall, MTU |
