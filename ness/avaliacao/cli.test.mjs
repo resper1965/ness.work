@@ -1,0 +1,21 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { lerSaida, textoDaResposta } from "./cli.mjs";
+
+test("lerSaida decodifica JSON", () => {
+  assert.equal(lerSaida('"chat_123"\n'), "chat_123");
+  assert.deepEqual(lerSaida('{"id":"x"}'), { id: "x" });
+});
+
+test("lerSaida devolve o texto cru quando não é JSON", () => {
+  assert.equal(lerSaida("chat_123"), "chat_123");
+  assert.equal(lerSaida(""), "");
+});
+
+test("textoDaResposta aceita string ou objeto com campo de texto", () => {
+  assert.equal(textoDaResposta("Linha 1\nLinha 2"), "Linha 1\nLinha 2");
+  assert.equal(textoDaResposta({ text: "Oi" }), "Oi");
+  assert.equal(textoDaResposta({ reply: "Oi" }), "Oi");
+  assert.equal(textoDaResposta({ content: [{ type: "text", text: "A" }, { type: "text", text: "B" }] }), "A\nB");
+  assert.equal(textoDaResposta({ outro: 1 }), '{"outro":1}');
+});
