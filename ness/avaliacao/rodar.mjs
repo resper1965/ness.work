@@ -31,7 +31,11 @@ const resultados = [];
 // (no ness.work, cada conversa pede o vínculo outra vez), em vez de parar no pedido de conexão.
 function lerMapa() {
   const chats = api("open-workspace", ws, "list-chats");
-  const msgs = (Array.isArray(chats) ? chats : []).flatMap((c) => api("open-workspace", ws, "get-chat-history", String(c.id))?.messages ?? []);
+  // As conexões aprovadas à mão ficam nas primeiras conversas do espaço; ler todas (centenas, depois
+  // de várias rodadas) levaria minutos antes da primeira pergunta.
+  const primeiras = (Array.isArray(chats) ? chats : []).sort((x, y) => x.id - y.id).slice(0, 10);
+  console.error(`Lendo conexões aprovadas em ${primeiras.length} conversas...`);
+  const msgs = primeiras.flatMap((c) => api("open-workspace", ws, "get-chat-history", String(c.id))?.messages ?? []);
   return mapaDeConexoes(msgs);
 }
 let mapa = {};
