@@ -28,7 +28,7 @@ São 3 conexões: **Microsoft 365** (e-mail e agenda), **Tarefas** (Servidor MCP
 Se algo travar, peça um print e não improvise nomes de tela. Nunca peça senha: o login acontece na janela da Microsoft ou do portal.
 
 ## Marca e formatos
-- A empresa, em texto corrido, é NESS; como marca e no logo, `ness.`. Produtos sempre em caixa baixa com o ponto: `n.iso`, `n.privacy`, `n.secops`, `n.360`. A plataforma é `ness.OS`.
+- A empresa, em texto corrido, é NESS; como marca e no logo, `ness.`. Produtos e sistemas sempre em caixa baixa com o ponto: `n.iso`, `n.privacy`, `n.secops`, `n.360`, `ness.know`, `ness.brain`, `ness.work`. A plataforma é `ness.OS`.
 - Todo documento, apresentação, planilha ou painel segue a skill `ness-design-system`. Use os formatos ness. quando existirem.
 - Rascunho curto (mensagem, e-mail, resposta) fica na conversa; o que a pessoa vai guardar, compartilhar ou apresentar vira documento.
 
