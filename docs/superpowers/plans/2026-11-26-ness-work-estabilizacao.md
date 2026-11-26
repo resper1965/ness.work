@@ -91,7 +91,7 @@ test("comando usa a CLI oficial com a instância e lê o texto da entrada padrã
 
 - [ ] **Step 2: Rodar e ver falhar**
 
-Run: `node --test ness/contexto/`
+Run: `node --test ness/contexto/*.test.mjs`
 Expected: FAIL com `Cannot find module '.../instrucao.mjs'`.
 
 - [ ] **Step 3: Implementar**
@@ -148,7 +148,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 
 - [ ] **Step 4: Rodar e ver passar**
 
-Run: `node --test ness/contexto/`
+Run: `node --test ness/contexto/*.test.mjs`
 Expected: 4 testes PASS.
 
 - [ ] **Step 5: Conferir que `montar.mjs` gera o mesmo texto que está no ar**
@@ -279,7 +279,7 @@ test("resumir dá média geral, por categoria e as 3 piores perguntas", () => {
 
 - [ ] **Step 3: Rodar e ver falhar**
 
-Run: `node --test ness/avaliacao/`
+Run: `node --test ness/avaliacao/*.test.mjs`
 Expected: FAIL com `Cannot find module '.../pontuar.mjs'`.
 
 - [ ] **Step 4: Implementar o pontuador**
@@ -318,7 +318,7 @@ export function resumir(resultados) {
 
 - [ ] **Step 5: Rodar e ver passar**
 
-Run: `node --test ness/avaliacao/`
+Run: `node --test ness/avaliacao/*.test.mjs`
 Expected: 6 testes PASS.
 
 - [ ] **Step 6: Decodificar a saída da CLI (teste primeiro)**
@@ -350,7 +350,7 @@ test("textoDaResposta aceita string ou objeto com campo de texto", () => {
 });
 ```
 
-Run: `node --test ness/avaliacao/`
+Run: `node --test ness/avaliacao/*.test.mjs`
 Expected: FAIL com `Cannot find module '.../cli.mjs'`.
 
 `ness/avaliacao/cli.mjs`:
@@ -371,7 +371,7 @@ export function textoDaResposta(v) {
 }
 ```
 
-Run: `node --test ness/avaliacao/`
+Run: `node --test ness/avaliacao/*.test.mjs`
 Expected: 9 testes PASS (6 do pontuador + 3 da CLI).
 
 - [ ] **Step 7: Implementar o executor**
