@@ -19,7 +19,7 @@ import type {
   SupportedResource,
   VendorDescription,
 } from "@gadgets/workshop-shared/gatekeeper";
-import type { CustomDeploymentInfo, CustomSession } from "./types.js";
+import type { FerramentaKnow, NessKnowSession, RespostaKnow } from "./types.js";
 import TYPES_CODE from "./types-code.js";
 
 const CUSTOM_ICON = {
@@ -33,15 +33,18 @@ const CUSTOM_ICON = {
 type ObservationQueue = Pick<ApprovalQueue, "authorizeObservation"> &
   Partial<{ [Symbol.dispose](): void }>;
 
+/** Endereço do MCP do ness.know (público, autenticado por chave de serviço). */
+export const NESS_KNOW_URL = "https://know.ness.com.br/mcp";
+
 export function describeCustomVendor(): VendorDescription {
   return {
-    displayName: "Custom Gatekeeper",
-    url: "https://github.com/cloudflare/cloudflare-os-starter",
+    displayName: "ness.know",
+    url: "https://know.ness.com.br",
     logo: CUSTOM_ICON,
-    color: "#e8f2ff",
-    tagline: "Example organization-specific capability",
+    color: "#e6f7fd",
+    tagline: "Conhecimento externo: normas, documentação oficial, vulnerabilidades e ameaças",
     description:
-      "A minimal Gatekeeper to copy when connecting CloudflareOS to your organization's systems.",
+      "Consulta somente leitura ao ness.know, disponível em toda conversa, sem conexão nem login.",
     autoProvisionsAccount: true,
     providesAuth: false,
   };
@@ -49,29 +52,84 @@ export function describeCustomVendor(): VendorDescription {
 
 export function describeCustomAccount(): AccountDescription {
   return {
-    displayName: "Custom Gatekeeper",
+    displayName: "ness.know",
     avatar: CUSTOM_ICON,
-    singleton: { tsType: "CustomSession" },
+    singleton: { tsType: "NessKnowSession" },
   };
 }
 
-@validateRpc()
-export class CustomSessionImpl extends RpcTarget implements CustomSession {
-  readonly #approvalQueue: ObservationQueue;
-  readonly #info: CustomDeploymentInfo;
+type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
-  constructor(approvalQueue: ObservationQueue, info: CustomDeploymentInfo) {
-    super();
-    this.#approvalQueue = approvalQueue;
-    this.#info = info;
+/** Cliente mínimo do MCP do ness.know (JSON-RPC sem sessão, chave Bearer). */
+export class ClienteKnow {
+  #id = 0;
+  #ferramentas: FerramentaKnow[] | null = null;
+  #somenteLeitura = new Set<string>();
+
+  constructor(
+    readonly url: string,
+    readonly token: string,
+    readonly buscar: Fetch = (u, i) => fetch(u, i),
+  ) {}
+
+  async #rpc(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+    if (!this.token) throw new Error("ness.know sem chave de serviço: configure o segredo NESS_KNOW_TOKEN.");
+    const r = await this.buscar(this.url, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json", authorization: `Bearer ${this.token}` },
+      body: JSON.stringify({ jsonrpc: "2.0", id: ++this.#id, method, params }),
+    });
+    const corpo = (await r.json().catch(() => null)) as { result?: Record<string, unknown>; error?: { message?: string } } | null;
+    if (!r.ok || !corpo || corpo.error) throw new Error(`ness.know respondeu ${r.status}: ${corpo?.error?.message ?? "sem detalhe"}`);
+    return corpo.result ?? {};
   }
 
-  async getDeploymentInfo(): Promise<CustomDeploymentInfo> {
+  async ferramentas(): Promise<FerramentaKnow[]> {
+    if (this.#ferramentas) return this.#ferramentas;
+    const r = await this.#rpc("tools/list", {});
+    const lista = (Array.isArray(r.tools) ? r.tools : []) as {
+      name?: string; description?: string; inputSchema?: unknown; annotations?: { readOnlyHint?: boolean };
+    }[];
+    // Só ferramentas que o servidor declara somente leitura ficam disponíveis.
+    const lidas = lista.filter((t) => typeof t.name === "string" && t.annotations?.readOnlyHint === true);
+    this.#somenteLeitura = new Set(lidas.map((t) => t.name!));
+    this.#ferramentas = lidas.map((t) => ({ nome: t.name!, descricao: t.description ?? "", argumentos: t.inputSchema ?? {} }));
+    return this.#ferramentas;
+  }
+
+  async consultar(ferramenta: string, argumentos: Record<string, unknown> = {}): Promise<RespostaKnow> {
+    await this.ferramentas();
+    if (!this.#somenteLeitura.has(ferramenta)) {
+      return { texto: `Ferramenta "${ferramenta}" não existe no ness.know ou não é somente leitura. Use ferramentas() para ver a lista.`, erro: true };
+    }
+    const r = await this.#rpc("tools/call", { name: ferramenta, arguments: argumentos });
+    const conteudo = (Array.isArray(r.content) ? r.content : []) as { type?: string; text?: string }[];
+    const texto = conteudo.filter((c) => c.type === "text" && typeof c.text === "string").map((c) => c.text).join("\n");
+    return { texto, erro: r.isError === true };
+  }
+}
+
+@validateRpc()
+export class CustomSessionImpl extends RpcTarget implements NessKnowSession {
+  readonly #approvalQueue: ObservationQueue;
+  readonly #cliente: ClienteKnow;
+
+  constructor(approvalQueue: ObservationQueue, cliente: ClienteKnow) {
+    super();
+    this.#approvalQueue = approvalQueue;
+    this.#cliente = cliente;
+  }
+
+  async ferramentas(): Promise<FerramentaKnow[]> {
+    return this.#cliente.ferramentas();
+  }
+
+  async consultar(ferramenta: string, argumentos?: Record<string, unknown>): Promise<RespostaKnow> {
     await this.#approvalQueue.authorizeObservation({
-      title: "Read deployment information",
-      description: "Read the custom information configured by this deployment.",
+      title: `Consultar o ness.know (${ferramenta})`,
+      description: "Consulta somente leitura à base de conhecimento externo da ness.",
     });
-    return this.#info;
+    return this.#cliente.consultar(ferramenta, argumentos ?? {});
   }
 
   [Symbol.dispose](): void {
@@ -80,14 +138,14 @@ export class CustomSessionImpl extends RpcTarget implements CustomSession {
 }
 
 @validateRpc()
-export class CustomGatekeeper extends DurableObject<Cloudflare.Env> implements Gatekeeper<CustomSession> {
+export class CustomGatekeeper extends DurableObject<Cloudflare.Env> implements Gatekeeper<NessKnowSession> {
   async describe(): Promise<ResourceDescription> {
     return {
-      url: "custom://deployment-info",
-      title: "Deployment information",
-      snippet: "Organization-specific information supplied by this deployment.",
-      suggestedBindingName: "CUSTOM",
-      tsType: "CustomSession",
+      url: "nessknow://conhecimento",
+      title: "ness.know",
+      snippet: "Normas, documentação oficial, CISA KEV, EPSS, inteligência de ameaças e MITRE ATT&CK, somente leitura.",
+      suggestedBindingName: "NESS_KNOW",
+      tsType: "NessKnowSession",
     };
   }
 
@@ -104,18 +162,15 @@ export class CustomGatekeeper extends DurableObject<Cloudflare.Env> implements G
     return null;
   }
 
-  async startSession(approvalQueue: RpcStub<ApprovalQueue>): Promise<CustomSession> {
-    return new CustomSessionImpl(approvalQueue.dup(), {
-      name: this.env.CUSTOM_NAME,
-      message: this.env.CUSTOM_MESSAGE,
-    });
+  async startSession(approvalQueue: RpcStub<ApprovalQueue>): Promise<NessKnowSession> {
+    return new CustomSessionImpl(approvalQueue.dup(), new ClienteKnow(NESS_KNOW_URL, this.env.NESS_KNOW_TOKEN ?? ""));
   }
 
   async addObserver(_id: string, _user: Fetcher<GatekeeperUserVerifier>): Promise<void> {}
   async removeObserver(_id: string): Promise<void> {}
 
   async applyAction(action: number): Promise<void> {
-    throw new Error(`Custom Gatekeeper has no actions (${action}).`);
+    throw new Error(`ness.know é somente leitura (${action}).`);
   }
 
   async rejectAction(_action: number): Promise<void> {}
@@ -131,7 +186,7 @@ export class CustomAccount extends WorkerEntrypoint<Cloudflare.Env> implements G
     return describeCustomAccount();
   }
 
-  async getSingletonGatekeeperClass(): Promise<DurableObjectClass<Gatekeeper<CustomSession>>> {
+  async getSingletonGatekeeperClass(): Promise<DurableObjectClass<Gatekeeper<NessKnowSession>>> {
     return this.ctx.exports.CustomGatekeeper({});
   }
 

@@ -128,12 +128,14 @@
     // }
   },
 
-  // Displayed to agents when the example custom integration is enabled in /admin. false deploys none.
+  // ness.know como gatekeeper "ambiente" (packages/custom-gatekeeper): consulta somente leitura ao MCP do
+  // know, em toda conversa, sem conexão nem login. Chave de serviço no segredo NESS_KNOW_TOKEN do Worker
+  // agentos-gk-custom. Em /admin, deixar o ness.know como "enabled" (forçado para todos).
   // Reference: docs/customization.md#custom-gatekeepers
   "customGatekeeper": {
-    "enabled": false,
-    "name": "NESS",
-    "message": "This is NESS's Cloudflare OS deployment."
+    "enabled": true,
+    "name": "ness.know",
+    "message": "Conhecimento externo da ness.: normas, documentação oficial, vulnerabilidades e ameaças."
   },
 
   // Explicit backend issue reports go to a private Worker that emits structured console errors.
