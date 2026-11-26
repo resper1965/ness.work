@@ -15,7 +15,7 @@ test("cada exigência falha separadamente e a nota é a fração cumprida", () =
   const r = "Linha 1\nLinha 2 enviei!";
   const { nota, falhas } = pontuar(r, p);
   assert.deepEqual(falhas.sort(), ["contem:MTU", "exclamacao", "fontes", "linhas:2>1", "naoContem:enviei", "recomendacao"].sort());
-  assert.equal(nota, 0);
+  assert.equal(nota, 1 / 7);
 });
 
 test("sem exigências, só a regra de exclamação vale", () => {
@@ -39,4 +39,9 @@ test("resumir dá média geral, por categoria e as 3 piores perguntas", () => {
     { id: "c", categoria: "m365", nota: 0 }, { id: "d", categoria: "m365", nota: 0.5 },
   ];
   assert.deepEqual(resumir(rs), { media: 0.5, porCategoria: { rede: 0.75, m365: 0.25 }, piores: ["c", "b", "d"] });
+});
+
+test("português europeu reprova a checagem ptBR", () => {
+  assert.equal(pontuar("Veja o ficheiro hosts e o registo A. Diga-me o erro.", base).falhas.join(), "ptBR");
+  assert.deepEqual(pontuar("Veja o arquivo hosts e o registro A.", base), { nota: 1, falhas: [] });
 });

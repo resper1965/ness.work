@@ -1,6 +1,9 @@
 // Pontua uma resposta da Nessie contra as exigências de uma pergunta de referência. Funções puras.
 const tem = (texto, termo) => texto.toLowerCase().includes(termo.toLowerCase());
 
+// Marcas de português europeu que o modelo deixa escapar; a Nessie escreve em português do Brasil.
+export const PT_PT = /\b(ficheiros?|registos?|ecrãs?|utilizador(es)?|telemóve(l|is)|diga-me|está a \w+r)\b/i;
+
 export function pontuar(resposta, pergunta) {
   const checagens = [];
   if (pergunta.exigeFontes) checagens.push(["fontes", /fontes\s*:/i.test(resposta)]);
@@ -13,6 +16,7 @@ export function pontuar(resposta, pergunta) {
   for (const t of pergunta.naoContem ?? []) checagens.push([`naoContem:${t}`, !tem(resposta, t)]);
   for (const t of pergunta.naoContemExato ?? []) checagens.push([`naoContemExato:${t}`, !resposta.includes(t)]);
   checagens.push(["exclamacao", !resposta.includes("!")]);
+  checagens.push(["ptBR", !PT_PT.test(resposta)]);
   const falhas = checagens.filter(([, ok]) => !ok).map(([nome]) => nome);
   return { nota: (checagens.length - falhas.length) / checagens.length, falhas };
 }
