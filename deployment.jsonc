@@ -106,7 +106,10 @@
     // "cloudflare" is Workers AI, which needs no key of your own. anthropic/openai need keys
     // stored on the gateway; "google" additionally requires CF_AI_GATEWAY_API_TOKEN.
     "providers": [
-      "cloudflare"
+      "cloudflare",
+      // Claude via BYOK: chave da Anthropic guardada no gateway agentos-ai (Provider Keys,
+      // alias default), cobrada no saldo de API da Anthropic. Nunca neste arquivo.
+      "anthropic"
     ]
   },
 
