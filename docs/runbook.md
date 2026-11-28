@@ -20,7 +20,7 @@ o `agent.md`.
 ## Bateria de avaliação da Nessie
 
 ```powershell
-$ws = "141417ebe8c1a9337f07a94c00acd72bb88ed54bb4da8aa680fa4cc5da300e8f"   # espaço "Avaliação Nessie"
+$ws = (pnpm --dir cloudflare-os exec cf-os api --url https://work.ness.com.br list-workspaces | ConvertFrom-Json | Where-Object title -eq "NESSIE").id
 node ness/avaliacao/rodar.mjs --workspace $ws --modelo "@cf/deepseek-ai/deepseek-v4.1-flash-1017"
 Compress-Archive -Path ness\avaliacao\resultados\* -DestinationPath "C:\Users\resper\OneDrive\Download-Sync\avaliacao.zip" -Force
 ```
@@ -39,6 +39,10 @@ Compress-Archive -Path ness\avaliacao\resultados\* -DestinationPath "C:\Users\re
   GLM 5.3 Flash → **Desativado**. GLM 5.3 reproduziu o prompt do sistema → **Oculto**.
 - Auto Router: ligado e **Oculto**, abaixo do Workers AI, pool só Workers AI. Só vira padrão se, na
   bateria, acertar ≥ o melhor modelo fixo − 5 p.p., com custo igual ou menor e sem falhas de 429/timeout.
+- Claude (Anthropic) por BYOK: a chave de API da Anthropic fica no gateway `agentos-ai` (Provider
+  Keys, alias `default`) e o uso sai do saldo de API da Anthropic. A assinatura do Claude (Pro/Max/Team)
+  não serve: não gera chave de API. Fica **Opcional/Oculto**, não padrão, até a bateria comparar nota
+  e custo com o Flash. Sem chave no gateway, todo pedido ao Claude falha.
 - Não usar por ora: Dynamic Routing, Guardrails e DLP do AI Gateway; OpenRouter.
 
 ## Colaborador novo
